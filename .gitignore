@@ -20,8 +20,6 @@ tsconfig.tsbuildinfo
 .env.test.local
 .env.production.local
 
-# Prisma
-prisma/migrations/
 
 # Logs
 npm-debug.log*
