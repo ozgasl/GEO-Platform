@@ -24,6 +24,8 @@ import { queueActions } from '../lib/actions/queue'
 import { revertAction } from '../lib/actions/revert'
 import { encryptSiteId, decryptToken, generateSnippet } from '../lib/monitoring/snippet'
 import { detectBot, recordVisit } from '../lib/monitoring/tracker'
+import { calculateGeoScore } from '../lib/reports/score'
+import { generateReport } from '../lib/reports/generator'
 import type { SnapshotData, PageSnapshot, IssueInput } from '../lib/types'
 
 // ANSI renk yardımcıları
@@ -568,6 +570,95 @@ async function main() {
   await db.site.delete({ where: { id: monSite.id } })
   await db.user.delete({ where: { id: monUser.id } })
   assert(true, 'Monitoring test verisi temizlendi')
+
+  // BÖLÜM 10: Report Engine
+  console.log('\n' + bold('10. Report Engine — calculateGeoScore / generateReport'))
+  console.log('─'.repeat(50))
+
+  // 10a: calculateGeoScore — saf fonksiyon, DB gerektirmez
+  const perfectSnapshot: SnapshotData = makeSnapshot({
+    hasLlmsTxt: true,
+    llmsTxtContent: '# Test\n> Desc\n\n## Pages\n- /: Ana sayfa',
+    hasRobotsTxt: true,
+    robotsBlocksAI: false,
+    hasSitemap: true,
+    httpsEnabled: true,
+    pages: [makePage({ jsonLdSchemas: [{ '@type': 'Organization' }] })],
+  })
+  const perfectScore = calculateGeoScore(perfectSnapshot, [])
+  assert(perfectScore.total === 100, `Sorunsuz site → 100 puan (gerçek: ${perfectScore.total})`)
+  assert(perfectScore.grade === 'A', `100 puan → A notu (gerçek: ${perfectScore.grade})`)
+
+  // CRITICAL issue cezası
+  const critIssue = { severity: 'CRITICAL', category: 'ROBOTS', status: 'PENDING' } as Parameters<typeof calculateGeoScore>[1][0]
+  const critScore = calculateGeoScore(perfectSnapshot, [critIssue])
+  assert(critScore.total <= 75, `CRITICAL issue → 25 puan düşüş (gerçek: ${critScore.total})`)
+
+  // Tüm sorunlar DISMISSED ise ceza uygulanmaz
+  const dismissedIssue = { ...critIssue, status: 'DISMISSED' } as Parameters<typeof calculateGeoScore>[1][0]
+  const dismissedScore = calculateGeoScore(perfectSnapshot, [dismissedIssue])
+  assert(dismissedScore.total === 100, `DISMISSED issue ceza uygulamaz (gerçek: ${dismissedScore.total})`)
+
+  // F notu
+  const badSnapshot: SnapshotData = makeSnapshot({ hasLlmsTxt: false, robotsBlocksAI: true, hasSitemap: false })
+  const manyIssues = [
+    { severity: 'CRITICAL', category: 'ROBOTS', status: 'PENDING' },
+    { severity: 'HIGH', category: 'LLMS_TXT', status: 'PENDING' },
+    { severity: 'HIGH', category: 'SCHEMA', status: 'PENDING' },
+    { severity: 'HIGH', category: 'CONTENT', status: 'PENDING' },
+  ] as Parameters<typeof calculateGeoScore>[1]
+  const badScore = calculateGeoScore(badSnapshot, manyIssues)
+  assert(badScore.total <= 45, `Kötü site → düşük puan (gerçek: ${badScore.total})`)
+  assert(['D', 'F'].includes(badScore.grade), `Düşük puan → D veya F notu (gerçek: ${badScore.grade})`)
+  assert(badScore.summary.length > 10, 'Summary boş değil')
+
+  // 10b: generateReport — DB gerektirir
+  const repUser = await db.user.create({
+    data: { email: 'report_test@geo-platform.local', name: 'Report Test' },
+  })
+  const repSite = await db.site.create({
+    data: { userId: repUser.id, url: 'https://report.example.com', name: '__test_report__', mode: 'ADVISOR' },
+  })
+  const repSnapshot = await db.snapshot.create({
+    data: {
+      siteId: repSite.id,
+      hasLlmsTxt: true,
+      llmsTxtContent: '# Test\n> Desc\n\n## Pages\n- /: Ana',
+      hasRobotsTxt: true, robotsBlocksAI: false,
+      hasSitemap: true, httpsEnabled: true,
+      pages: [makePage()] as unknown as object[],
+    },
+  })
+  await db.issue.create({
+    data: {
+      snapshotId: repSnapshot.id,
+      severity: 'HIGH', category: 'SCHEMA',
+      title: 'Schema eksik', description: 'Test', impact: 'Test',
+      actionType: 'AUTO_FIX', status: 'PENDING',
+    },
+  })
+
+  const reportResult = await generateReport(repSite.id)
+  assert(typeof reportResult.score === 'number' && reportResult.score >= 0 && reportResult.score <= 100,
+    `generateReport: geçerli skor döndü (${reportResult.score}/100)`)
+  assert(['A','B','C','D','F'].includes(reportResult.grade), `Geçerli not: ${reportResult.grade}`)
+  assert(reportResult.issuesFound === 1, 'issuesFound doğru sayıldı')
+  assert(reportResult.topIssues.length === 1, 'topIssues listesi dolu')
+  assert(reportResult.topIssues[0].severity === 'HIGH', 'En ağır issue listede')
+  assert(!!reportResult.period.match(/^\d{4}-W\d{2}$/), `period formatı doğru: ${reportResult.period}`)
+
+  // DB'de Report kaydı oluştu mu?
+  const dbReport = await db.report.findUnique({ where: { id: reportResult.reportId } })
+  assert(!!dbReport, 'generateReport: DB\'ye Report kaydı yazıldı')
+  assert(dbReport!.issuesFound === 1, 'DB Report.issuesFound doğru')
+
+  // Temizlik
+  await db.report.delete({ where: { id: reportResult.reportId } })
+  await db.issue.deleteMany({ where: { snapshotId: repSnapshot.id } })
+  await db.snapshot.delete({ where: { id: repSnapshot.id } })
+  await db.site.delete({ where: { id: repSite.id } })
+  await db.user.delete({ where: { id: repUser.id } })
+  assert(true, 'Report Engine test verisi temizlendi')
 
   // SONUÇ
   console.log('\n' + '═'.repeat(50))
