@@ -221,22 +221,27 @@ export async function discoverUrls(baseUrl: string): Promise<string[]> {
     bfsUrls.forEach(u => discovered.add(u))
   }
 
-  // 3. Sabit eklemeler — homepage her zaman dahil edilmeli
-  discovered.add(`${base.origin}/`)
-  discovered.add(`${base.origin}/robots.txt`)
-  discovered.add(`${base.origin}/llms.txt`)
-  discovered.add(`${base.origin}/llms-full.txt`)
+  // 3. Kritik URL'ler her zaman dahil — slice'dan önce ayrıca tutulur
+  const pinned = [
+    `${base.origin}/`,
+    `${base.origin}/robots.txt`,
+    `${base.origin}/llms.txt`,
+    `${base.origin}/llms-full.txt`,
+  ]
+  pinned.forEach(u => discovered.add(u))
 
-  // 4. Aynı domain'den çık, max 50 URL
-  return [...discovered]
+  // 4. Aynı domain filtresi + max 50 — ama pinned URL'ler kesilmez
+  const rest = [...discovered]
     .filter(u => {
       try {
-        return new URL(u).origin === base.origin
+        return new URL(u).origin === base.origin && !pinned.includes(u)
       } catch {
         return false
       }
     })
-    .slice(0, MAX_URLS)
+    .slice(0, MAX_URLS - pinned.length)
+
+  return [...pinned, ...rest]
 }
 
 async function discoverUrlsWithPlaywright(baseUrl: string, baseOrigin: string): Promise<string[]> {
