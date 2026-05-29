@@ -63,7 +63,13 @@ Her sayfa için:
     const raw =
       response.content[0].type === 'text' ? response.content[0].text : ''
 
-    const parsed = JSON.parse(raw) as { pages: ContentIssue[] }
+    // Claude bazen JSON'ı ```json ... ``` içinde dönebilir — fence'leri temizle
+    const cleaned = raw
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```\s*$/i, '')
+      .trim()
+
+    const parsed = JSON.parse(cleaned) as { pages: ContentIssue[] }
     return parsed.pages ?? []
   } catch (err) {
     console.error('[LLM] analyzePageContent başarısız:', err)
