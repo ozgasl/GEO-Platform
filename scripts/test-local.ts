@@ -6,6 +6,7 @@
  *  2. Rule engine — mock snapshot'larla tüm 5 kural
  *  3. detectChangedPages — contentHash diff
  *  4. DB CRUD — User → Site → Snapshot → Issue tam döngüsü
+ *  5. Action Engine — applyAction, queueActions, revertAction (DB gerektirir)
  */
 
 import { db } from '../lib/db'
@@ -18,7 +19,10 @@ import {
   checkBasicSchema,
   runAllRules,
 } from '../lib/analyzer/rules'
-import type { SnapshotData, PageSnapshot } from '../lib/types'
+import { applyAction } from '../lib/actions/apply'
+import { queueActions } from '../lib/actions/queue'
+import { revertAction } from '../lib/actions/revert'
+import type { SnapshotData, PageSnapshot, IssueInput } from '../lib/types'
 
 // ANSI renk yardımcıları
 const green = (s: string) => `\x1b[32m✓ ${s}\x1b[0m`
@@ -319,6 +323,177 @@ async function main() {
   await db.site.delete({ where: { id: site.id } })
   await db.user.delete({ where: { id: user.id } })
   assert(true, 'Test verisi temizlendi')
+
+  // BÖLÜM 8: Action Engine
+  console.log('\n' + bold('8. Action Engine — applyAction / queueActions / revertAction'))
+  console.log('─'.repeat(50))
+
+  // Temiz kullanıcı + site + snapshot oluştur
+  await db.action.deleteMany({ where: { site: { name: '__test_action__' } } })
+  await db.issue.deleteMany({ where: { snapshot: { site: { name: '__test_action__' } } } })
+  await db.snapshot.deleteMany({ where: { site: { name: '__test_action__' } } })
+  await db.site.deleteMany({ where: { name: '__test_action__' } })
+  await db.user.deleteMany({ where: { email: 'action_test@geo-platform.local' } })
+
+  const actUser = await db.user.create({
+    data: { email: 'action_test@geo-platform.local', name: 'Action Test User' },
+  })
+  const actSite = await db.site.create({
+    data: { userId: actUser.id, url: 'https://action-test.example.com', name: '__test_action__', mode: 'ADVISOR' },
+  })
+  const actPages: PageSnapshot[] = [makePage({ url: 'https://action-test.example.com/' })]
+  const actSnapshot = await db.snapshot.create({
+    data: {
+      siteId: actSite.id,
+      hasLlmsTxt: false,
+      llmsTxtContent: null,
+      hasRobotsTxt: true,
+      robotsBlocksAI: false,
+      hasSitemap: true,
+      httpsEnabled: true,
+      pages: actPages as unknown as object[],
+    },
+  })
+
+  // 8a: queueActions — ADVISOR modunda AUTO_FIX otomatik uygulanmaz
+  const issueInputs: IssueInput[] = [
+    {
+      snapshotId: actSnapshot.id,
+      severity: 'HIGH',
+      category: 'LLMS_TXT',
+      title: 'llms.txt eksik',
+      description: 'Sitenizde llms.txt bulunamadı.',
+      impact: 'AI motorları sitenizi anlayamıyor.',
+      actionType: 'AUTO_FIX',
+      actionPayload: { fixType: 'generate_llms_txt' },
+    },
+  ]
+  const queueResult = await queueActions(actSite.id, actSnapshot.id, issueInputs)
+  assert(queueResult.queued === 1, 'queueActions: 1 issue kuyruğa eklendi')
+  assert(queueResult.autoApplied === 0, 'ADVISOR modunda AUTO_FIX otomatik uygulanmaz')
+
+  // DB'de PENDING durumunda mı?
+  const pendingIssues = await db.issue.findMany({
+    where: { snapshotId: actSnapshot.id, status: 'PENDING' },
+  })
+  assert(pendingIssues.length === 1, 'Issue PENDING durumunda kaydedildi')
+
+  // 8b: applyAction — FAQ fix (DB/LLM gerektirmez, sadece payload işler)
+  const faqIssue = await db.issue.create({
+    data: {
+      snapshotId: actSnapshot.id,
+      severity: 'MEDIUM',
+      category: 'CONTENT',
+      title: 'SSS içeriği eksik',
+      description: 'Sıkça sorulan sorular eklenmeli.',
+      impact: 'İçerik zayıf.',
+      actionType: 'CONTENT_SUGGESTION',
+      status: 'PENDING',
+      actionPayload: {
+        suggestedFaqItems: [
+          { question: 'Ürünleriniz neler?', answer: 'Traktör ve tarım ekipmanları.' },
+          { question: 'Teslimat süresi nedir?', answer: '3-5 iş günü.' },
+        ],
+      },
+    },
+  })
+  const applyResult = await applyAction(faqIssue.id, 'USER_APPROVED')
+  assert(applyResult.success, 'applyAction: FAQ önerisi başarıyla uygulandı')
+  assert(applyResult.changeType === 'faq_suggested', 'changeType doğru: faq_suggested')
+  assert(applyResult.after.includes('Ürünleriniz neler?'), 'FAQ içeriği after alanında')
+  assert(!applyResult.isReversible, 'FAQ önerisi geri alınamaz (isReversible: false)')
+
+  const appliedIssue = await db.issue.findUniqueOrThrow({ where: { id: faqIssue.id } })
+  assert(appliedIssue.status === 'APPLIED', 'Issue status → APPLIED güncellendi')
+
+  const action = await db.action.findUniqueOrThrow({ where: { issueId: faqIssue.id } })
+  assert(!!action.id, 'Action kaydı oluşturuldu')
+  assert(action.appliedBy === 'USER_APPROVED', 'appliedBy: USER_APPROVED')
+
+  // 8c: revertAction — isReversible=false olan aksiyon geri alınamaz
+  try {
+    await revertAction(action.id)
+    assert(false, 'FAQ aksiyonu geri alınmamalıydı — hata bekleniyor')
+  } catch (e) {
+    assert(
+      e instanceof Error && e.message.includes('geri alınamaz'),
+      'isReversible=false için hata fırlatıldı'
+    )
+  }
+
+  // 8d: revertAction — isReversible=true olan aksiyon geri alınabilir
+  const revertableIssue = await db.issue.create({
+    data: {
+      snapshotId: actSnapshot.id,
+      severity: 'CRITICAL',
+      category: 'ROBOTS',
+      title: 'Robots test',
+      description: 'Test',
+      impact: 'Test',
+      actionType: 'AUTO_FIX',
+      status: 'APPLIED',
+    },
+  })
+  const revertableAction = await db.action.create({
+    data: {
+      siteId: actSite.id,
+      issueId: revertableIssue.id,
+      appliedBy: 'USER_APPROVED',
+      changeType: 'robots_txt_updated',
+      before: 'User-agent: *\nDisallow: /api/',
+      after: 'User-agent: *\nDisallow: /api/\n\nUser-agent: GPTBot\nAllow: /',
+      isReversible: true,
+    },
+  })
+  const revertResult = await revertAction(revertableAction.id)
+  assert(revertResult.success, 'revertAction: geri alma başarılı')
+  assert(revertResult.restoredContent.includes('Disallow: /api/'), 'before içeriği geri yüklendi')
+
+  const revertedIssue = await db.issue.findUniqueOrThrow({ where: { id: revertableIssue.id } })
+  assert(revertedIssue.status === 'PENDING', 'Geri alınan issue → PENDING durumuna döndü')
+
+  const revertedAction = await db.action.findUniqueOrThrow({ where: { id: revertableAction.id } })
+  assert(!!revertedAction.reversedAt, 'Action.reversedAt güncellendi')
+
+  // 8e: queueActions — PILOT modunda AUTO_FIX otomatik uygulanır
+  await db.site.update({ where: { id: actSite.id }, data: { mode: 'PILOT' } })
+  const pilotSnapshot = await db.snapshot.create({
+    data: {
+      siteId: actSite.id,
+      hasLlmsTxt: false,
+      llmsTxtContent: null,
+      hasRobotsTxt: true,
+      robotsBlocksAI: false,
+      hasSitemap: true,
+      httpsEnabled: true,
+      pages: actPages as unknown as object[],
+    },
+  })
+  const pilotIssues: IssueInput[] = [
+    {
+      snapshotId: pilotSnapshot.id,
+      severity: 'MEDIUM',
+      category: 'CONTENT',
+      title: 'PILOT FAQ testi',
+      description: 'Test',
+      impact: 'Test',
+      actionType: 'CONTENT_SUGGESTION',
+      actionPayload: {
+        suggestedFaqItems: [{ question: 'Pilot soru?', answer: 'Pilot cevap.' }],
+      },
+    },
+  ]
+  const pilotResult = await queueActions(actSite.id, pilotSnapshot.id, pilotIssues)
+  assert(pilotResult.queued === 1, 'PILOT: 1 issue kuyruğa eklendi')
+  assert(pilotResult.autoApplied === 0, 'CONTENT_SUGGESTION PILOT modunda otomatik uygulanmaz (sadece AUTO_FIX)')
+
+  // Temizlik
+  await db.action.deleteMany({ where: { siteId: actSite.id } })
+  await db.issue.deleteMany({ where: { snapshot: { siteId: actSite.id } } })
+  await db.snapshot.deleteMany({ where: { siteId: actSite.id } })
+  await db.site.delete({ where: { id: actSite.id } })
+  await db.user.delete({ where: { id: actUser.id } })
+  assert(true, 'Action Engine test verisi temizlendi')
 
   // SONUÇ
   console.log('\n' + '═'.repeat(50))
