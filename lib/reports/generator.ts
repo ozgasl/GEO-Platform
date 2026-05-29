@@ -24,7 +24,7 @@ export interface ReportSummary {
     description: string
   }>
   breakdown: Record<string, number>
-  crawledAt: Date
+  crawledAt: Date | string
   pagesAnalyzed: number
   issuesFound: number
   issuesFixed: number

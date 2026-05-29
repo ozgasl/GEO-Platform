@@ -45,7 +45,7 @@ function buildEmailHtml(report: ReportSummary, appUrl: string): string {
           GEO Platform — Haftalık Rapor
         </span>
         <h1 style="margin:8px 0 4px;font-size:22px;color:#111827;">AI Görünürlük Skoru</h1>
-        <p style="margin:0;font-size:14px;color:#6b7280;">${new Date(report.crawledAt).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' })}</p>
+        <p style="margin:0;font-size:14px;color:#6b7280;">${new Date(report.crawledAt as string).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' })}</p>
       </div>
 
       <!-- Skor -->

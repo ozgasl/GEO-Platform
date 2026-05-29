@@ -26,6 +26,7 @@ import { encryptSiteId, decryptToken, generateSnippet } from '../lib/monitoring/
 import { detectBot, recordVisit } from '../lib/monitoring/tracker'
 import { calculateGeoScore } from '../lib/reports/score'
 import { generateReport } from '../lib/reports/generator'
+import { functions } from '../lib/inngest/functions'
 import type { SnapshotData, PageSnapshot, IssueInput } from '../lib/types'
 
 // ANSI renk yardımcıları
@@ -659,6 +660,22 @@ async function main() {
   await db.site.delete({ where: { id: repSite.id } })
   await db.user.delete({ where: { id: repUser.id } })
   assert(true, 'Report Engine test verisi temizlendi')
+
+  // BÖLÜM 11: Inngest Jobs — config doğrulama
+  console.log('\n' + bold('11. Inngest Jobs — fonksiyon config doğrulama'))
+  console.log('─'.repeat(50))
+
+  assert(functions.length === 4, `4 Inngest fonksiyonu tanımlı (gerçek: ${functions.length})`)
+
+  // Inngest'te id() bir method'dur
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fnIds = functions.map((f: any) => f.id() as string)
+  assert(fnIds.includes('crawl-site'), 'crawl-site fonksiyonu mevcut')
+  assert(fnIds.includes('scheduled-crawl'), 'scheduled-crawl (cron) fonksiyonu mevcut')
+  assert(fnIds.includes('weekly-report'), 'weekly-report (cron) fonksiyonu mevcut')
+  assert(fnIds.includes('generate-report'), 'generate-report fonksiyonu mevcut')
+
+  assert(true, 'Inngest fonksiyonları import edilip yapılandırıldı (gerçek çalışma Inngest Dev Server gerektirir)')
 
   // SONUÇ
   console.log('\n' + '═'.repeat(50))
