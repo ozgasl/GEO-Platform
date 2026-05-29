@@ -98,17 +98,24 @@ async function applySchemaInjection(
   snapshotData: SnapshotData
 ): Promise<{ changeType: string; before: string | null; after: string; instructions: string; isReversible: boolean }> {
   const targetUrl = payload.url as string
-  const schemaType = payload.schemaType as string
+  // "TechArticle + FAQPage" gibi bileşik türlerde ilk türü al
+  const rawSchemaType = payload.schemaType as string
+  const primarySchemaType = rawSchemaType.split('+')[0].trim()
 
-  const page = snapshotData.pages.find(p => p.url === targetUrl)
+  const normalize = (u: string) => u.replace(/\/$/, '')
+  const page = snapshotData.pages.find(p => normalize(p.url) === normalize(targetUrl))
   if (!page) throw new Error(`Sayfa bulunamadı: ${targetUrl}`)
 
   const existingSchemas = page.jsonLdSchemas
     .map(s => JSON.stringify(s, null, 2))
     .join('\n')
 
-  const after = await generateSchemaMarkup(page, schemaType)
-  if (!after) throw new Error(`${schemaType} schema üretilemedi.`)
+  // LLM ile dene; başarısız olursa temel şablon üret
+  let after = await generateSchemaMarkup(page, primarySchemaType)
+
+  if (!after) {
+    after = buildFallbackSchema(primarySchemaType, page, snapshotData)
+  }
 
   return {
     changeType: 'schema_added',
@@ -119,28 +126,95 @@ async function applySchemaInjection(
   }
 }
 
+/** LLM başarısız olduğunda temel JSON-LD şablonu üretir. */
+function buildFallbackSchema(schemaType: string, page: { url: string; title: string; h1: string | null; metaDescription: string | null }, snapshotData: SnapshotData): string {
+  const siteUrl = snapshotData.hasLlmsTxt !== undefined
+    ? new URL(page.url).origin
+    : page.url
+
+  const base: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': schemaType,
+    url: page.url,
+    name: page.title || page.h1 || siteUrl,
+    description: page.metaDescription || '',
+  }
+
+  if (schemaType === 'Organization') {
+    base['@type'] = 'Organization'
+    base.url = siteUrl
+    base.contactPoint = { '@type': 'ContactPoint', contactType: 'customer service' }
+  } else if (schemaType === 'Product') {
+    base['@type'] = 'Product'
+  } else if (schemaType === 'Article' || schemaType === 'TechArticle') {
+    base['@type'] = schemaType
+    base.headline = page.title || page.h1
+    base.author = { '@type': 'Organization', name: new URL(page.url).hostname }
+    base.datePublished = new Date().toISOString().split('T')[0]
+  } else if (schemaType === 'FAQPage') {
+    base['@type'] = 'FAQPage'
+    base.mainEntity = []
+  }
+
+  return `<script type="application/ld+json">\n${JSON.stringify(base, null, 2)}\n</script>`
+}
+
 async function applyFaqSuggestion(
   payload: Record<string, unknown>
 ): Promise<{ changeType: string; before: string | null; after: string; instructions: string; isReversible: boolean }> {
   const items = (payload.suggestedFaqItems ?? []) as Array<{ question: string; answer?: string }>
+  const missingQuestions = (payload.missingQuestions ?? []) as string[]
+  const contentGap = payload.contentGap as string | undefined
 
+  // suggestedFaqItems yoksa mevcut payload alanlarından içerik önerisi üret
+  if (items.length === 0) {
+    const recommendation = payload.recommendation as string | undefined
+    const sections: string[] = ['## İçerik Önerisi']
+
+    if (recommendation) {
+      sections.push('', recommendation)
+    }
+
+    if (contentGap) {
+      sections.push('', '### Eksik İçerik', contentGap)
+    }
+
+    if (missingQuestions.length > 0) {
+      sections.push(
+        '',
+        '### Yanıtlanması Gereken Sorular',
+        missingQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')
+      )
+
+      sections.push('', '---', '', '## HTML Şablonu (Doldurun)', '')
+      const html = `<div class="faq-section">\n${missingQuestions
+        .map(q => `  <div class="faq-item">\n    <h3>${q}</h3>\n    <p><!-- Yanıtı buraya yazın --></p>\n  </div>`)
+        .join('\n')}\n</div>`
+      sections.push(html)
+    }
+
+    return {
+      changeType: 'faq_suggested',
+      before: null,
+      after: sections.join('\n'),
+      instructions: 'Bu içerik önerisine göre sayfanıza içerik ekleyin.',
+      isReversible: false,
+    }
+  }
+
+  // suggestedFaqItems varsa mevcut mantık
   const markdown = items
     .map(i => `**S: ${i.question}**\nC: ${i.answer ?? '(yanıt ekleyin)'}`)
     .join('\n\n')
 
   const html = `<div class="faq-section">\n${items
-    .map(
-      i =>
-        `  <div class="faq-item">\n    <h3>${i.question}</h3>\n    <p>${i.answer ?? ''}</p>\n  </div>`
-    )
+    .map(i => `  <div class="faq-item">\n    <h3>${i.question}</h3>\n    <p>${i.answer ?? ''}</p>\n  </div>`)
     .join('\n')}\n</div>`
-
-  const after = `## Markdown\n\n${markdown}\n\n---\n\n## HTML\n\n${html}`
 
   return {
     changeType: 'faq_suggested',
     before: null,
-    after,
+    after: `## Markdown\n\n${markdown}\n\n---\n\n## HTML\n\n${html}`,
     instructions: 'Bu içeriği ilgili sayfanın uygun bölümüne ekleyin.',
     isReversible: false,
   }
@@ -183,7 +257,8 @@ export async function applyAction(
   const snapshotData = dbSnapshotToData(issue.snapshot)
   const siteUrl = issue.snapshot.site.url
   const payload = (issue.actionPayload ?? {}) as Record<string, unknown>
-  const fixType = (payload.fixType as string) ?? issue.actionType
+  const fixType = (payload.fixType as string) ??
+    (payload.schemaType ? 'add_schema' : issue.actionType)
 
   let result: Awaited<ReturnType<typeof applyLlmsTxtUpdate>>
 

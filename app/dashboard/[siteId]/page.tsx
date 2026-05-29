@@ -4,9 +4,10 @@ import { getSessionUser, requireSiteOwner } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import { calculateGeoScore } from '@/lib/reports/score'
 import ScoreBadge from '@/components/dashboard/ScoreBadge'
-import IssueList from '@/components/dashboard/IssueList'
+import IssueTabs from '@/components/dashboard/IssueTabs'
 import SnippetPanel from '@/components/dashboard/SnippetPanel'
 import ModeToggle from '@/components/dashboard/ModeToggle'
+import ScanButton from '@/components/dashboard/ScanButton'
 import type { PageSnapshot } from '@/lib/types'
 
 async function getSiteData(siteId: string, userId: string) {
@@ -21,8 +22,8 @@ async function getSiteData(siteId: string, userId: string) {
         take: 1,
         include: {
           issues: {
-            where: { status: 'PENDING' },
             orderBy: [{ severity: 'asc' }],
+            include: { action: true },
           },
         },
       },
@@ -50,7 +51,8 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
   if (!site) notFound()
 
   const snapshot = site.snapshots[0]
-  const issues = snapshot?.issues ?? []
+  const allIssues = snapshot?.issues ?? []
+  const issues = allIssues.filter(i => i.status === 'PENDING')
 
   // GEO skoru
   const snapshotData = snapshot ? {
@@ -92,7 +94,10 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
             {site.url} ↗
           </a>
         </div>
-        <ModeToggle siteId={site.id} currentMode={site.mode} />
+        <div className="flex items-center gap-2">
+          <ScanButton siteId={site.id} lastCrawledAt={site.lastCrawledAt} />
+          <ModeToggle siteId={site.id} currentMode={site.mode} />
+        </div>
       </div>
 
       {/* Stats row */}
@@ -131,13 +136,8 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
       <div className="grid grid-cols-3 gap-6">
         {/* Main: issues */}
         <div className="col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-gray-900">
-              Bekleyen İyileştirmeler
-              {issues.length > 0 && (
-                <span className="ml-2 text-sm font-normal text-gray-400">({issues.length})</span>
-              )}
-            </h2>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-base font-semibold text-gray-900">İyileştirmeler</h2>
             {snapshot && (
               <Link href={`/dashboard/${site.id}/reports`}
                 className="text-sm text-blue-600 hover:text-blue-700">
@@ -145,7 +145,7 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
               </Link>
             )}
           </div>
-          <IssueList issues={issues} siteId={site.id} />
+          <IssueTabs allIssues={allIssues} siteId={site.id} />
         </div>
 
         {/* Sidebar: tech status + snippet */}
@@ -195,7 +195,8 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
       {!snapshot && (
         <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200 mt-6">
           <p className="text-gray-500 text-sm font-medium">Site henüz taranmadı.</p>
-          <p className="text-gray-400 text-xs mt-1">İlk crawl otomatik olarak başlatılacak.</p>
+          <p className="text-gray-400 text-xs mt-1 mb-4">İlk analizi başlatmak için aşağıdaki butonu kullanın.</p>
+          <ScanButton siteId={site.id} lastCrawledAt={site.lastCrawledAt} />
         </div>
       )}
     </div>

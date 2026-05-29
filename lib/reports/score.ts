@@ -71,7 +71,7 @@ export function calculateGeoScore(snapshot: SnapshotData, issues: Issue[]): GeoS
 
   return {
     total,
-    breakdown: { technical, llmstext: llmsScore, schema: schemaScore, content: contentScore } as unknown as GeoScore['breakdown'],
+    breakdown: { technical, llmstxt: llmsScore, schema: schemaScore, content: contentScore },
     grade,
     summary,
   }

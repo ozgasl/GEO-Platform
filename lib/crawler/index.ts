@@ -86,6 +86,18 @@ async function fetchText(url: string): Promise<{ ok: boolean; content: string | 
   }
 }
 
+/**
+ * Gerçek bir llms.txt mi yoksa soft-404 HTML sayfası mı?
+ * Geçerli llms.txt: # başlıklı satır içerir veya HTML etiketi içermez.
+ */
+function isValidLlmsTxt(content: string | null): boolean {
+  if (!content || content.trim().length === 0) return false
+  const lower = content.slice(0, 500).toLowerCase()
+  // HTML döndüren soft-404 sayfaları
+  if (lower.includes('<!doctype') || lower.includes('<html')) return false
+  return true
+}
+
 async function checkUrlExists(url: string): Promise<boolean> {
   try {
     const res = await fetch(url, {
@@ -480,11 +492,17 @@ export async function crawlSite(siteId: string): Promise<CrawlResult> {
 
   // Robots.txt, llms.txt ve sitemap kontrolü — Playwright yerine basit fetch
   const base = new URL(site.url)
-  const [robotsResult, llmsResult, sitemapExists] = await Promise.all([
+  const [robotsResult, llmsResultRaw, sitemapExists] = await Promise.all([
     fetchText(`${base.origin}/robots.txt`),
     fetchText(`${base.origin}/llms.txt`),
     checkUrlExists(`${base.origin}/sitemap.xml`),
   ])
+
+  // llms.txt doğrulaması: HTML sayfa döndüren soft-404'leri ele
+  const llmsResult = {
+    ok: llmsResultRaw.ok && isValidLlmsTxt(llmsResultRaw.content),
+    content: llmsResultRaw.ok && isValidLlmsTxt(llmsResultRaw.content) ? llmsResultRaw.content : null,
+  }
 
   const blockedBots = robotsResult.content ? detectBlockedBots(robotsResult.content) : []
   const robotsBlocksAI = blockedBots.length > 0
