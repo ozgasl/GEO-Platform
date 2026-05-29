@@ -6,7 +6,7 @@
  *
  * Gereksinimler:
  *   1. npx playwright install chromium
- *   2. Geçerli DATABASE_URL (.env veya ortam değişkeni)
+ *   2. DATABASE_URL gerekmez (script DB'ye yazmıyor)
  *   3. Anthropic API anahtarı (LLM analizi için, opsiyonel)
  */
 

@@ -221,7 +221,8 @@ export async function discoverUrls(baseUrl: string): Promise<string[]> {
     bfsUrls.forEach(u => discovered.add(u))
   }
 
-  // 3. Sabit eklemeler
+  // 3. Sabit eklemeler — homepage her zaman dahil edilmeli
+  discovered.add(`${base.origin}/`)
   discovered.add(`${base.origin}/robots.txt`)
   discovered.add(`${base.origin}/llms.txt`)
   discovered.add(`${base.origin}/llms-full.txt`)
@@ -309,6 +310,11 @@ export function prioritizeUrls(urls: string[]): PrioritizedUrl[] {
 
     if (SKIP_PATTERNS.some(p => p.test(pathname))) {
       return { url, priority: 3 as const }
+    }
+
+    // Homepage her zaman en yüksek öncelik
+    if (pathname === '/' || pathname === '') {
+      return { url, priority: 1 as const }
     }
 
     if (HIGH_PRIORITY_PATTERNS.some(p => p.test(pathname))) {

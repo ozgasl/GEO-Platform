@@ -238,11 +238,26 @@ export function checkBasicSchema(snapshot: SnapshotData): IssueInput[] {
     }
   }
 
-  // Ürün sayfaları
+  // Ürün sayfaları — iki yöntemle tespit:
+  // 1. Bilinen URL pattern'ları (/products/, /shop/ altı)
+  // 2. Mevcut JSON-LD'de Product/Offer tipi VAR ama eksik olan sayfalar hariç,
+  //    OR: tek-segment slug + düşük kelime sayısı + schema yok (e-ticaret katalog pattern'ı)
   const productPages = snapshot.pages.filter(p => {
     try {
       const path = new URL(p.url).pathname.toLowerCase()
-      return /\/(products?|urunler?|shop|magaza)\//.test(path)
+      if (path === '/') return false
+
+      // Bilinen alt-dizin pattern'ları
+      if (/\/(products?|urunler?|shop|magaza|catalog|katalog)\//.test(path)) return true
+
+      // E-ticaret root-level slug: tek segment, schema yok, kısa içerik
+      // Örn: /dipstick, /clutch-link, /heater-plug-fordson (product detail sayfaları)
+      const segments = path.split('/').filter(Boolean)
+      const hasNoSchema = p.jsonLdSchemas.length === 0
+      const isShortContent = p.wordCount < 200
+      if (segments.length === 1 && hasNoSchema && isShortContent) return true
+
+      return false
     } catch {
       return false
     }
@@ -307,6 +322,60 @@ function hasSchemaType(page: PageSnapshot, types: string[]): boolean {
 }
 
 /**
+ * Sayfaların AI görünürlüğü için yeterli içerik içerip içermediğini kontrol eder.
+ * Ortalama kelime sayısı 150'nin altındaysa HIGH, 300'ün altındaysa MEDIUM issue.
+ */
+export function checkContentDepth(snapshot: SnapshotData): IssueInput | null {
+  const contentPages = snapshot.pages.filter(p => {
+    try {
+      const path = new URL(p.url).pathname
+      return path !== '/robots.txt' && path !== '/llms.txt' && path !== '/llms-full.txt'
+    } catch {
+      return false
+    }
+  })
+
+  if (contentPages.length === 0) return null
+
+  const avgWordCount = Math.round(
+    contentPages.reduce((sum, p) => sum + p.wordCount, 0) / contentPages.length
+  )
+
+  if (avgWordCount < 150) {
+    return issue(snapshot.id, {
+      severity: 'HIGH',
+      category: 'CONTENT',
+      title: `Sayfalar çok az içerik içeriyor (ortalama ${avgWordCount} kelime)`,
+      description: `Taranan ${contentPages.length} sayfanın ortalama içerik uzunluğu ${avgWordCount} kelime. AI arama motorları, bir soruya yanıt vermek için en az 200-300 kelimelik, bilgi yoğun içerik arar.`,
+      impact:
+        'Bu kadar kısa içerikli sayfalar AI sistemleri tarafından "kaynak olarak gösterilmeye değmez" olarak değerlendirilir. ChatGPT veya Perplexity, bu sayfalardan doğrudan alıntı yapamaz.',
+      actionType: 'CONTENT_SUGGESTION',
+      actionPayload: {
+        avgWordCount,
+        pageCount: contentPages.length,
+        recommendation:
+          'Her ürün/hizmet sayfasına: ürün açıklaması, kullanım alanları, uyumluluk bilgisi ve SSS bölümü ekleyerek 300+ kelimeye çıkarın.',
+      },
+    })
+  }
+
+  if (avgWordCount < 300) {
+    return issue(snapshot.id, {
+      severity: 'MEDIUM',
+      category: 'CONTENT',
+      title: `Sayfa içerikleri AI görünürlüğü için yetersiz (ortalama ${avgWordCount} kelime)`,
+      description: `Ortalama sayfa içeriği ${avgWordCount} kelime. Önerilen minimum: 300 kelime.`,
+      impact:
+        'AI sistemleri içerik zenginliğini kaynak kalitesinin göstergesi olarak kullanır. Daha uzun, bilgi yoğun sayfalar daha sık alıntılanır.',
+      actionType: 'CONTENT_SUGGESTION',
+      actionPayload: { avgWordCount, recommendation: 'Sayfa başına 300+ kelime hedefleyin.' },
+    })
+  }
+
+  return null
+}
+
+/**
  * Tüm kural kontrollerini çalıştırır.
  * previousSnapshot geçilirse llms.txt güncelleme kontrolü de yapılır.
  */
@@ -319,6 +388,7 @@ export function runAllRules(
     checkLlmsTxt(snapshot, previousSnapshot),
     checkHttps(snapshot),
     checkSitemap(snapshot),
+    checkContentDepth(snapshot),
   ]
 
   const schemaIssues = checkBasicSchema(snapshot)
