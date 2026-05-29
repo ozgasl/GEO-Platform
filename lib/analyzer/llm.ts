@@ -18,7 +18,7 @@ const client = new Anthropic({
 export async function analyzePageContent(pages: PageSnapshot[]): Promise<ContentIssue[]> {
   if (pages.length === 0) return []
 
-  const batch = pages.slice(0, 5)
+  const batch = pages.slice(0, 3)
 
   const pagesSummary = batch.map(p => ({
     url: p.url,
@@ -36,7 +36,7 @@ export async function analyzePageContent(pages: PageSnapshot[]): Promise<Content
   try {
     const response = await client.messages.create({
       model: MODEL,
-      max_tokens: 2048,
+      max_tokens: 4096,
       system: `Sen bir GEO (Generative Engine Optimization) uzmanısın.
 Görevin: web sayfalarını AI arama motorlarının bakış açısıyla analiz etmek.
 Bir AI motoru (ChatGPT, Claude, Perplexity) belirli bir soruya yanıt ararken bu sayfaları kaynak olarak kullanır mı? Kullanmak için ne eksik?
@@ -210,8 +210,8 @@ ${JSON.stringify(pageData, null, 2)}`,
 export async function analyzePagesBatched(pages: PageSnapshot[]): Promise<ContentIssue[]> {
   const results: ContentIssue[] = []
 
-  for (let i = 0; i < pages.length; i += 5) {
-    const batch = pages.slice(i, i + 5)
+  for (let i = 0; i < pages.length; i += 3) {
+    const batch = pages.slice(i, i + 3)
     const batchResults = await analyzePageContent(batch)
     results.push(...batchResults)
   }
