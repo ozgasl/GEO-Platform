@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Kullanıcı hesabı — NextAuth ile entegre
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  emailVerified DateTime?
+  image         String?
+  plan          Plan      @default(STARTER)
+  createdAt     DateTime  @default(now())
+  sites         Site[]
+  sessions      Session[]
+  accounts      Account[]
+}
+
+// NextAuth — OAuth hesap bağlantıları
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+// NextAuth — oturum yönetimi
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// NextAuth — e-posta doğrulama tokenleri
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Müşterinin izlenen sitesi
+model Site {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id])
+  url            String    // Ana domain: https://example.com
+  name           String    // Görünen ad: "Benim Mağazam"
+  mode           SiteMode  @default(ADVISOR) // ADVISOR | PILOT
+  crawlFrequency CrawlFreq @default(WEEKLY) // DAILY | WEEKLY
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  lastCrawledAt  DateTime?
+  snapshots      Snapshot[]
+  actions        Action[]
+  reports        Report[]
+}
+
+// Her tarama sonucu — "fotoğraf" mantığı
+model Snapshot {
+  id         String   @id @default(cuid())
+  siteId     String
+  site       Site     @relation(fields: [siteId], references: [id])
+  crawledAt  DateTime @default(now())
+
+  // Teknik durum — kural motoru sonuçları
+  hasLlmsTxt     Boolean
+  llmsTxtContent String?  @db.Text
+  hasRobotsTxt   Boolean
+  robotsBlocksAI Boolean  // GPTBot veya ClaudeBot engellenmiş mi?
+  hasSitemap     Boolean
+  httpsEnabled   Boolean
+
+  // Taranan sayfalar (PageSnapshot[] JSON dizisi)
+  pages Json
+
+  // AI bot ziyaret logları (monitoring snippet entegrasyonu ile)
+  aiCrawlerVisits Json? // { gptbot: number, claudebot: number, perplexitybot: number }
+
+  // Karşılaştırma için önceki snapshot
+  previousSnapshotId String?
+
+  issues Issue[]
+}
+
+// Bir taramada bulunan her sorun veya fırsat
+model Issue {
+  id         String   @id @default(cuid())
+  snapshotId String
+  snapshot   Snapshot @relation(fields: [snapshotId], references: [id])
+
+  severity      Severity      // CRITICAL | HIGH | MEDIUM | LOW
+  category      IssueCategory // ROBOTS | LLMS_TXT | SCHEMA | CONTENT | TECHNICAL
+  title         String        // Kısa, insan dilinde başlık
+  description   String        @db.Text // Detaylı açıklama — jargonsuz
+  impact        String        @db.Text // "Bu sorun şu anlama geliyor: ..."
+  actionType    ActionType    // AUTO_FIX | CONTENT_SUGGESTION | MANUAL_REQUIRED
+  actionPayload Json?         // Uygulanacak değişikliğin içeriği
+  status        IssueStatus   @default(PENDING)
+
+  action Action?
+}
+
+// Uygulanan veya onaylanan her aksiyon
+model Action {
+  id      String @id @default(cuid())
+  siteId  String
+  site    Site   @relation(fields: [siteId], references: [id])
+  issueId String @unique
+  issue   Issue  @relation(fields: [issueId], references: [id])
+
+  appliedAt  DateTime  @default(now())
+  appliedBy  AppliedBy // USER_APPROVED | AUTO_PILOT
+  changeType String    // "llms_txt_updated", "schema_added", vb.
+  before     String?   @db.Text
+  after      String    @db.Text
+
+  isReversible Boolean   @default(true)
+  reversedAt   DateTime?
+}
+
+// Haftalık / aylık durum raporu
+model Report {
+  id      String @id @default(cuid())
+  siteId  String
+  site    Site   @relation(fields: [siteId], references: [id])
+
+  period      String   // "2026-W21" veya "2026-05"
+  generatedAt DateTime @default(now())
+  summary     String   @db.Text // Claude tarafından üretilmiş insan dilinde özet
+
+  issuesFound     Int
+  issuesFixed     Int
+  aiCrawlerVisits Int
+  llmsTxtUpdated  Boolean
+
+  emailSentAt DateTime?
+}
+
+enum Plan {
+  STARTER
+  AGENCY_5
+  AGENCY_20
+}
+
+enum SiteMode {
+  ADVISOR
+  PILOT
+}
+
+enum CrawlFreq {
+  DAILY
+  WEEKLY
+}
+
+enum Severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum IssueCategory {
+  ROBOTS
+  LLMS_TXT
+  SCHEMA
+  CONTENT
+  TECHNICAL
+}
+
+enum ActionType {
+  AUTO_FIX
+  CONTENT_SUGGESTION
+  MANUAL_REQUIRED
+}
+
+enum IssueStatus {
+  PENDING
+  APPROVED
+  APPLIED
+  DISMISSED
+}
+
+enum AppliedBy {
+  USER_APPROVED
+  AUTO_PILOT
+}
