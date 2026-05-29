@@ -22,6 +22,8 @@ import {
 import { applyAction } from '../lib/actions/apply'
 import { queueActions } from '../lib/actions/queue'
 import { revertAction } from '../lib/actions/revert'
+import { encryptSiteId, decryptToken, generateSnippet } from '../lib/monitoring/snippet'
+import { detectBot, recordVisit } from '../lib/monitoring/tracker'
 import type { SnapshotData, PageSnapshot, IssueInput } from '../lib/types'
 
 // ANSI renk yardımcıları
@@ -494,6 +496,78 @@ async function main() {
   await db.site.delete({ where: { id: actSite.id } })
   await db.user.delete({ where: { id: actUser.id } })
   assert(true, 'Action Engine test verisi temizlendi')
+
+  // BÖLÜM 9: Monitoring Engine
+  console.log('\n' + bold('9. Monitoring Engine — snippet / detectBot / recordVisit'))
+  console.log('─'.repeat(50))
+
+  // 9a: Token şifreleme / çözme
+  const testSiteId = 'test_site_id_abc123'
+  const token9 = encryptSiteId(testSiteId)
+  assert(token9 !== testSiteId, 'encryptSiteId: token düz metin değil')
+  assert(!token9.includes(testSiteId), 'encryptSiteId: siteId token içinde görünmüyor')
+  const decoded9 = decryptToken(token9)
+  assert(decoded9 === testSiteId, 'decryptToken: şifresi çözülmüş ID eşleşiyor')
+  assert(decryptToken('invalid_garbage_token') === null, 'decryptToken: geçersiz token → null')
+
+  // 9b: Snippet üretimi
+  const snippet9 = generateSnippet(testSiteId, 'https://app.geo-platform.com')
+  assert(snippet9.includes('/api/beacon'), 'Snippet beacon URL içeriyor')
+  assert(snippet9.includes(token9), 'Snippet şifreli token içeriyor')
+  assert(!snippet9.includes(testSiteId), 'Snippet düz siteId içermiyor')
+  assert(snippet9.includes('<script>'), 'Snippet script etiketi içeriyor')
+
+  // 9c: Bot tespiti
+  assert(detectBot('Mozilla/5.0 GPTBot/1.0') === 'gptbot', 'GPTBot tespit edildi')
+  assert(detectBot('ClaudeBot/1.0 (+https://www.anthropic.com/en/claude-bot)') === 'claudebot', 'ClaudeBot tespit edildi')
+  assert(detectBot('Mozilla/5.0 PerplexityBot/1.0') === 'perplexitybot', 'PerplexityBot tespit edildi')
+  assert(detectBot('OAI-SearchBot/1.0') === 'oai_searchbot', 'OAI-SearchBot tespit edildi')
+  assert(detectBot('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120') === null, 'Normal tarayıcı → null')
+  assert(detectBot('') === null, 'Boş UA → null')
+
+  // 9d: recordVisit — DB'de sayaç artışı
+  const monUser = await db.user.create({
+    data: { email: 'monitoring_test@geo-platform.local', name: 'Monitor Test' },
+  })
+  const monSite = await db.site.create({
+    data: { userId: monUser.id, url: 'https://monitor.example.com', name: '__test_monitor__', mode: 'ADVISOR' },
+  })
+  const monSnapshot = await db.snapshot.create({
+    data: {
+      siteId: monSite.id,
+      hasLlmsTxt: false, hasRobotsTxt: true, robotsBlocksAI: false,
+      hasSitemap: true, httpsEnabled: true,
+      pages: [],
+    },
+  })
+
+  const monToken = encryptSiteId(monSite.id)
+
+  // GPTBot ziyareti kaydet
+  const visit1 = await recordVisit(monToken, 'GPTBot/1.0 (+https://openai.com/gptbot)')
+  assert(visit1.ok, 'recordVisit: GPTBot ziyareti kaydedildi')
+
+  // Aynı bot tekrar ziyaret — sayaç artmalı
+  await recordVisit(monToken, 'GPTBot/1.0')
+  const snap9 = await db.snapshot.findUniqueOrThrow({ where: { id: monSnapshot.id } })
+  const visits9 = snap9.aiCrawlerVisits as Record<string, number>
+  assert(visits9['gptbot'] === 2, `GPTBot sayacı 2 olmalı (gerçek: ${visits9['gptbot']})`)
+
+  // ClaudeBot ziyareti
+  await recordVisit(monToken, 'ClaudeBot/1.0')
+  const snap9b = await db.snapshot.findUniqueOrThrow({ where: { id: monSnapshot.id } })
+  const visits9b = snap9b.aiCrawlerVisits as Record<string, number>
+  assert(visits9b['claudebot'] === 1, 'ClaudeBot sayacı 1 olmalı')
+
+  // Geçersiz token → ok: false
+  const visitInvalid = await recordVisit('totally_invalid', 'GPTBot/1.0')
+  assert(!visitInvalid.ok && visitInvalid.reason === 'invalid_token', 'Geçersiz token → {ok: false}')
+
+  // Temizlik
+  await db.snapshot.delete({ where: { id: monSnapshot.id } })
+  await db.site.delete({ where: { id: monSite.id } })
+  await db.user.delete({ where: { id: monUser.id } })
+  assert(true, 'Monitoring test verisi temizlendi')
 
   // SONUÇ
   console.log('\n' + '═'.repeat(50))
