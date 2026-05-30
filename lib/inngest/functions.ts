@@ -124,7 +124,7 @@ export const weeklyReportJob = inngest.createFunction(
       if (!site.user.email) continue
 
       const result = await step.run(`report-${site.id}`, async () => {
-        const report = await generateReport(site.id)
+        const report = await generateReport(site.id, 'WEEKLY')
         const emailResult = await sendReportEmail(
           report,
           site.user.email!,

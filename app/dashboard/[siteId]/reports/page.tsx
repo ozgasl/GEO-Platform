@@ -36,46 +36,72 @@ export default async function ReportsPage({ params }: { params: { siteId: string
         </div>
       ) : (
         <div className="space-y-3">
-          {reports.map(report => (
-            <div key={report.id} className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                      {report.period}
-                    </span>
-                    {report.llmsTxtUpdated && (
-                      <span className="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
-                        llms.txt güncellendi
+          {reports.map(report => {
+            const base = `/api/sites/${params.siteId}/reports/${report.id}/download`
+            return (
+              <div key={report.id} className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                        {report.period}
                       </span>
-                    )}
-                    {report.emailSentAt && (
-                      <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                        E-posta gönderildi
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        report.triggerType === 'WEEKLY'
+                          ? 'text-purple-700 bg-purple-50'
+                          : 'text-orange-700 bg-orange-50'
+                      }`}>
+                        {report.triggerType === 'WEEKLY' ? 'Haftalık' : 'Manuel'}
                       </span>
-                    )}
+                      {report.llmsTxtUpdated && (
+                        <span className="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                          llms.txt güncellendi
+                        </span>
+                      )}
+                      {report.emailSentAt && (
+                        <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                          E-posta gönderildi
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-700">{report.summary}</p>
                   </div>
-                  <p className="text-sm text-gray-700">{report.summary}</p>
-                </div>
-                <div className="text-right ml-4 flex-shrink-0">
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-gray-500">
-                    <span>Bulunan:</span>
-                    <span className="font-semibold text-gray-900 text-right">{report.issuesFound}</span>
-                    <span>Çözülen:</span>
-                    <span className="font-semibold text-green-700 text-right">{report.issuesFixed}</span>
-                    <span>AI Ziyaret:</span>
-                    <span className="font-semibold text-gray-900 text-right">{report.aiCrawlerVisits}</span>
+                  <div className="ml-4 flex-shrink-0 flex flex-col items-end gap-2">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-gray-500">
+                      <span>Bulunan:</span>
+                      <span className="font-semibold text-gray-900 text-right">{report.issuesFound}</span>
+                      <span>Çözülen:</span>
+                      <span className="font-semibold text-green-700 text-right">{report.issuesFixed}</span>
+                      <span>AI Ziyaret:</span>
+                      <span className="font-semibold text-gray-900 text-right">{report.aiCrawlerVisits}</span>
+                    </div>
+                    <div className="flex gap-1.5 mt-1">
+                      <a
+                        href={`${base}?type=action-plan`}
+                        download
+                        className="text-xs px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-medium transition-colors"
+                      >
+                        Action Plan
+                      </a>
+                      <a
+                        href={`${base}?type=report`}
+                        download
+                        className="text-xs px-2.5 py-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 font-medium transition-colors"
+                      >
+                        Rapor
+                      </a>
+                    </div>
                   </div>
                 </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  {new Date(report.generatedAt).toLocaleString('tr-TR', {
+                    day: 'numeric', month: 'long', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit',
+                  })}
+                </p>
               </div>
-              <p className="text-xs text-gray-400 mt-2">
-                {new Date(report.generatedAt).toLocaleString('tr-TR', {
-                  day: 'numeric', month: 'long', year: 'numeric',
-                  hour: '2-digit', minute: '2-digit',
-                })}
-              </p>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

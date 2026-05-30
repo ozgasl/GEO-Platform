@@ -35,7 +35,7 @@ export interface ReportSummary {
  * Bir site için haftalık/aylık GEO raporu oluşturur ve DB'ye kaydeder.
  * En son snapshot ve açık issue'ları baz alır.
  */
-export async function generateReport(siteId: string): Promise<ReportSummary> {
+export async function generateReport(siteId: string, triggerType: 'MANUAL' | 'WEEKLY' = 'MANUAL'): Promise<ReportSummary> {
   const snapshot = await db.snapshot.findFirst({
     where: { siteId },
     orderBy: { crawledAt: 'desc' },
@@ -96,6 +96,8 @@ export async function generateReport(siteId: string): Promise<ReportSummary> {
       siteId,
       period,
       summary: `[${geoScore.grade}] ${geoScore.summary}`,
+      triggerType,
+      snapshotId: snapshot.id,
       issuesFound: snapshot.issues.length,
       issuesFixed,
       aiCrawlerVisits: totalAiVisits,

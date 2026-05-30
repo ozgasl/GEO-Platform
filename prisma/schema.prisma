@@ -148,9 +148,11 @@ model Report {
   siteId  String
   site    Site   @relation(fields: [siteId], references: [id])
 
-  period      String   // "2026-W21" veya "2026-05"
-  generatedAt DateTime @default(now())
-  summary     String   @db.Text // Claude tarafından üretilmiş insan dilinde özet
+  period      String      // "2026-W21" veya "2026-05"
+  generatedAt DateTime    @default(now())
+  summary     String      @db.Text // Claude tarafından üretilmiş insan dilinde özet
+  triggerType TriggerType @default(MANUAL)
+  snapshotId  String?
 
   issuesFound     Int
   issuesFixed     Int
@@ -158,6 +160,11 @@ model Report {
   llmsTxtUpdated  Boolean
 
   emailSentAt DateTime?
+}
+
+enum TriggerType {
+  MANUAL
+  WEEKLY
 }
 
 enum Plan {
