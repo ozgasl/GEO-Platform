@@ -48,11 +48,11 @@ export const crawlSiteJob = inngest.createFunction(
       })
     })
 
-    // Downstream event
-    await step.sendEvent('site-crawled', {
-      name: 'geo/site.crawled',
-      data: { siteId, snapshotId: crawlResult.snapshotId },
-    })
+    // Downstream events
+    await step.sendEvent('site-crawled', [
+      { name: 'geo/site.crawled', data: { siteId, snapshotId: crawlResult.snapshotId } },
+      { name: 'geo/report.requested', data: { siteId } },
+    ])
 
     return { siteId, snapshotId: crawlResult.snapshotId, issueCount: issues.length }
   }
