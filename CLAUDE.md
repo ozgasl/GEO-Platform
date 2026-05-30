@@ -147,7 +147,7 @@ components/dashboard/
 
 - **Railway = Inngest worker:** Tüm Inngest fonksiyonları (crawl, cron, report) Railway'de serve edilir. Playwright burada çalışır.
 - **Vercel'i Inngest'e ASLA sync etme:** `serve()` sadece Railway'de. Vercel'de olursa çift cron + issue çiftlenmesi yaşanır.
-- **Dockerfile tag = package.json sürümü:** `mcr.microsoft.com/playwright:v1.49.0-noble`. Sürüm uyuşmazsa Playwright yanlış tarayıcıyı arar ve patlar.
+- **Dockerfile tag = package.json sürümü:** `mcr.microsoft.com/playwright:v1.60.0-noble` (şu an). Sürüm uyuşmazsa Playwright yanlış tarayıcıyı arar ve patlar. playwright package.json'da caret olmadan pin'li tutulmalı.
 - **"Şimdi Tara" artık Inngest eventi:** `/api/sites/[siteId]/crawl` `inngest.send({ name: "geo/site.crawl.requested" })` gönderir, `runCrawlPipeline` doğrudan çağrılmaz.
 - **RESEND_API_KEY Railway'de gerekli:** `weekly-report` ve `generate-report` jobları email gönderir; Railway env'e eklenmelidir.
 - **Neon pooled/direct ayrımı zorunlu:** Vercel (serverless) = pooled URL (`-pooler` hostname); Railway worker = DIRECT_URL; `prisma migrate deploy` daima DIRECT_URL üzerinden. Yanlış kurulursa yük gelince bağlantılar tükenir.
