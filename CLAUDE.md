@@ -5,7 +5,7 @@ GEO (Generative Engine Optimization) SaaS platformu. ChatGPT, Claude, Perplexity
 
 **Branch:** `main`
 **Repo:** `ozgasl/GEO-Platform`
-**Versiyon:** v0.1.3
+**Versiyon:** v0.2.1
 
 ---
 
@@ -116,14 +116,16 @@ lib/
   monitoring/snippet.ts  — encryptSiteId, generateSnippet
   monitoring/tracker.ts  — detectBot, recordVisit
   reports/score.ts       — calculateGeoScore(snapshot, issues): GeoScore
-  reports/generator.ts   — generateReport(siteId, snapshotId)
+  reports/generator.ts   — generateReport(siteId, triggerType?) — 'MANUAL' | 'WEEKLY', snapshotId kaydeder
   inngest/functions.ts   — crawl-site, scheduled-crawl, weekly-report, generate-report
 
 app/api/sites/[siteId]/
-  crawl/route.ts         — POST: "Şimdi Tara" tetikleme (inngest.send → geo/site.crawl.requested)
-  issues/[id]/approve    — POST: applyAction
-  issues/[id]/dismiss    — POST: DISMISSED
-  actions/[id]/revert    — POST: revertAction
+  crawl/route.ts                          — POST: "Şimdi Tara" (inngest.send → geo/site.crawl.requested)
+  issues/[id]/approve                     — POST: applyAction
+  issues/[id]/dismiss                     — POST: DISMISSED
+  actions/[id]/revert                     — POST: revertAction
+  reports/route.ts                        — GET: rapor listesi, POST: manuel rapor tetikleme
+  reports/[reportId]/download/route.ts    — GET: ?type=action-plan|report → .md indir
 
 components/dashboard/
   ScanButton.tsx   — "Şimdi Tara" + polling
@@ -136,30 +138,34 @@ components/dashboard/
 
 ---
 
-## Bilinen Kısıtlamalar (v0.1.3)
+## Kritik Mimari Notlar
 
-1. **Playwright + Vercel:** Serverless'ta çalışmaz; ayrı worker gerektirir
-2. **"Şimdi Tara" Inngest eventi:** `geo/site.crawl.requested` event'i gönderir; Railway'deki `crawl-site` job çalıştırır
-3. **applyAction imzası:** `applyAction(issueId, appliedBy)` — sadece 2 parametre
-4. **Google OAuth session.user.id:** `getSessionUser()` kullan; `auth()` ile gelen `session.user.id` Google OAuth subject ID'si, DB CUID değil
+- `runAnalysis()` SADECE analiz yapar, DB'ye yazmaz — IssueInput[] döner
+- `queueActions()` DB'ye yazar (create) ve PILOT modda auto-apply yapar
+- Bu ayrımı bozma: aksi hâlde her issue çiftlenir (DISMISSED + PENDING)
+- `applyAction(issueId, appliedBy)` — sadece 2 parametre
+- **Google OAuth session.user.id:** `getSessionUser()` kullan; `auth()` ile gelen `session.user.id` Google OAuth subject ID'si, DB CUID değil
+- **Crawl sonrası rapor:** `crawlSiteJob` bitince `geo/report.requested` eventi gönderir → `generateReportJob` çalışır (triggerType: MANUAL)
+- **Weekly rapor:** `weeklyReportJob` → `generateReport(siteId, 'WEEKLY')` — triggerType WEEKLY olarak kaydedilir
 
-## Deployment Mimarisi Kararları (v0.2)
+---
+
+## Deployment Mimarisi (v0.2)
 
 - **Railway = Inngest worker:** Tüm Inngest fonksiyonları (crawl, cron, report) Railway'de serve edilir. Playwright burada çalışır.
 - **Vercel'i Inngest'e ASLA sync etme:** `serve()` sadece Railway'de. Vercel'de olursa çift cron + issue çiftlenmesi yaşanır.
 - **Dockerfile tag = package.json sürümü:** `mcr.microsoft.com/playwright:v1.60.0-noble` (şu an). Sürüm uyuşmazsa Playwright yanlış tarayıcıyı arar ve patlar. playwright package.json'da caret olmadan pin'li tutulmalı.
 - **"Şimdi Tara" artık Inngest eventi:** `/api/sites/[siteId]/crawl` `inngest.send({ name: "geo/site.crawl.requested" })` gönderir, `runCrawlPipeline` doğrudan çağrılmaz.
 - **RESEND_API_KEY Railway'de gerekli:** `weekly-report` ve `generate-report` jobları email gönderir; Railway env'e eklenmelidir.
-- **Neon pooled/direct ayrımı zorunlu:** Vercel (serverless) = pooled URL (`-pooler` hostname); Railway worker = DIRECT_URL; `prisma migrate deploy` daima DIRECT_URL üzerinden. Yanlış kurulursa yük gelince bağlantılar tükenir.
-  - `DATABASE_URL` = `postgresql://...@ep-...-pooler.../neondb?sslmode=require`
-  - `DIRECT_URL` = `postgresql://...@ep-....../neondb?sslmode=require` (pooler yok)
+- **Neon pooled/direct ayrımı zorunlu:**
+  - Vercel `DATABASE_URL` = `postgresql://...@ep-...-pooler.../neondb?sslmode=require&pgbouncer=true` ← `pgbouncer=true` ŞART
+  - Railway/migration `DATABASE_URL` = direct URL (pooler yok, pgbouncer yok)
+  - `DIRECT_URL` = her iki ortamda da direct URL
+  - `pgbouncer=true` olmadan Vercel'de hazırlanan ifade çakışması (prepared statement conflict) nedeniyle 500 hatası alınır
 
-## Kritik Mimari Not
-- `runAnalysis()` SADECE analiz yapar, DB'ye yazmaz — IssueInput[] döner
-- `queueActions()` DB'ye yazar (create) ve PILOT modda auto-apply yapar
-- Bu ayrımı bozma: aksi hâlde her issue çiftlenir (DISMISSED + PENDING)
+---
 
-## Sonraki Adımlar (v0.2)
-- Vercel deploy + Playwright worker (Railway/Fly.io)
+## Sonraki Adımlar (v0.3)
 - Plan limiti kontrolleri (STARTER: 1 site)
 - Stripe entegrasyonu
+- Dashboard'da "Rapor Oluştur" butonu (isteğe bağlı, crawl sonrası zaten otomatik)
