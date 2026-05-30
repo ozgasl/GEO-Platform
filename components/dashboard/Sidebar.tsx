@@ -42,7 +42,6 @@ export default function Sidebar() {
 
   const navItems: NavItem[] = [
     { label: 'Siteler', href: '/dashboard', icon: <DashboardIcon /> },
-    { label: 'Belgeler', href: '/docs', icon: <DocsIcon /> },
   ]
 
   return (

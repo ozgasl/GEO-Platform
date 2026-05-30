@@ -41,15 +41,18 @@ function IssueItem({ issue, siteId }: IssueItemProps) {
   const [loading, setLoading] = useState<'approve' | 'dismiss' | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [result, setResult] = useState<{ after?: string; instructions?: string } | null>(null)
+  const [applyError, setApplyError] = useState<string | null>(null)
 
   async function approve() {
     setLoading('approve')
+    setApplyError(null)
     const res = await fetch(`/api/sites/${siteId}/issues/${issue.id}/approve`, { method: 'POST' })
-    const data = await res.json()
+    const data = await res.json().catch(() => ({}))
     setLoading(null)
     if (res.ok) {
       setResult({ after: data.after, instructions: data.instructions })
-      router.refresh()
+    } else {
+      setApplyError(data.error ?? 'Aksiyon uygulanamadı. Lütfen tekrar deneyin.')
     }
   }
 
@@ -83,10 +86,26 @@ function IssueItem({ issue, siteId }: IssueItemProps) {
               💡 {issue.impact}
             </p>
 
+            {/* Apply error */}
+            {applyError && (
+              <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1.5 border border-red-100 mt-2">
+                ⚠ {applyError}
+              </p>
+            )}
+
             {/* Result */}
             {result && (
               <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3">
-                <p className="text-xs font-medium text-green-800 mb-1">✓ Aksiyon uygulandı</p>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs font-medium text-green-800">✓ Aksiyon uygulandı</p>
+                  <button
+                    onClick={() => { setResult(null); router.refresh() }}
+                    className="text-xs text-green-600 hover:text-green-800"
+                    title="Kapat ve listeyi güncelle"
+                  >
+                    ✕ Kapat
+                  </button>
+                </div>
                 {result.instructions && (
                   <p className="text-xs text-green-700">{result.instructions}</p>
                 )}

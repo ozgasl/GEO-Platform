@@ -3,7 +3,7 @@ import type { ContentIssue, PageSnapshot, SnapshotData } from '@/lib/types'
 
 // Maliyet/performans dengesi için claude-sonnet-4-5 kullanıyoruz.
 // Güncellemek için bu sabiti değiştirin.
-const MODEL = 'claude-sonnet-4-5'
+const MODEL = 'claude-sonnet-4-6'
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
