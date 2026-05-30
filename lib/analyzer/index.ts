@@ -11,6 +11,13 @@ import { analyzePagesBatched } from './llm'
  * 3. Tüm issue'ları DB'ye kaydeder
  */
 export async function runAnalysis(snapshotId: string): Promise<IssueInput[]> {
+  // Idempotency: bu snapshot zaten analiz edildiyse tekrar çalıştırma
+  const existingCount = await db.issue.count({ where: { snapshotId } })
+  if (existingCount > 0) {
+    console.warn(`[runAnalysis] snapshotId=${snapshotId} zaten analiz edildi (${existingCount} issue). Atlanıyor.`)
+    return []
+  }
+
   // Snapshot ve önceki snapshot'ı çek
   const snapshot = await db.snapshot.findUniqueOrThrow({
     where: { id: snapshotId },

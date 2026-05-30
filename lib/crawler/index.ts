@@ -86,6 +86,37 @@ async function fetchText(url: string): Promise<{ ok: boolean; content: string | 
   }
 }
 
+/**
+ * Gerçek bir llms.txt mi yoksa soft-404 HTML sayfası mı?
+ */
+function isValidLlmsTxt(content: string | null): boolean {
+  if (!content || content.trim().length === 0) return false
+  const lower = content.slice(0, 500).toLowerCase()
+  if (lower.includes('<!doctype') || lower.includes('<html')) return false
+  return true
+}
+
+/**
+ * robots.txt'den hangi AI botların açıkça izin verildiğini tespit eder.
+ */
+function parseAllowedBots(robotsContent: string): string[] {
+  const AI_BOT_NAMES = ['GPTBot', 'ClaudeBot', 'PerplexityBot', 'OAI-SearchBot']
+  const allowed: string[] = []
+  for (const bot of AI_BOT_NAMES) {
+    const pattern = new RegExp(`User-agent:\\s*${bot}[\\s\\S]*?Allow:\\s*/`, 'i')
+    if (pattern.test(robotsContent)) allowed.push(bot)
+  }
+  return allowed
+}
+
+/**
+ * Sitemap XML'inden <loc> sayısını döndürür.
+ */
+function parseSitemapUrlCount(content: string | null): number {
+  if (!content) return 0
+  return (content.match(/<loc>/gi) ?? []).length
+}
+
 async function checkUrlExists(url: string): Promise<boolean> {
   try {
     const res = await fetch(url, {
@@ -480,14 +511,24 @@ export async function crawlSite(siteId: string): Promise<CrawlResult> {
 
   // Robots.txt, llms.txt ve sitemap kontrolü — Playwright yerine basit fetch
   const base = new URL(site.url)
-  const [robotsResult, llmsResult, sitemapExists] = await Promise.all([
+  const [robotsResult, llmsResultRaw, sitemapResult] = await Promise.all([
     fetchText(`${base.origin}/robots.txt`),
     fetchText(`${base.origin}/llms.txt`),
-    checkUrlExists(`${base.origin}/sitemap.xml`),
+    fetchText(`${base.origin}/sitemap.xml`),
   ])
 
+  const sitemapExists = sitemapResult.ok && !!sitemapResult.content
+
+  // llms.txt doğrulaması: HTML sayfa döndüren soft-404'leri ele
+  const llmsResult = {
+    ok: llmsResultRaw.ok && isValidLlmsTxt(llmsResultRaw.content),
+    content: llmsResultRaw.ok && isValidLlmsTxt(llmsResultRaw.content) ? llmsResultRaw.content : null,
+  }
+
   const blockedBots = robotsResult.content ? detectBlockedBots(robotsResult.content) : []
+  const allowedBots = robotsResult.content ? parseAllowedBots(robotsResult.content) : []
   const robotsBlocksAI = blockedBots.length > 0
+  const sitemapUrlCount = parseSitemapUrlCount(sitemapResult.content)
 
   // Sayfa taraması — max 3 eş zamanlı
   const browser = await chromium.launch({ headless: true })
@@ -526,6 +567,12 @@ export async function crawlSite(siteId: string): Promise<CrawlResult> {
       hasSitemap: sitemapExists,
       httpsEnabled: site.url.startsWith('https://'),
       pages: pages as unknown as object[],
+      technicalDetails: {
+        robotsContent: robotsResult.content ?? null,
+        blockedBots,
+        allowedBots,
+        sitemapUrlCount,
+      },
       previousSnapshotId: previousSnapshot?.id ?? null,
     },
   })

@@ -4,9 +4,11 @@ import { getSessionUser, requireSiteOwner } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import { calculateGeoScore } from '@/lib/reports/score'
 import ScoreBadge from '@/components/dashboard/ScoreBadge'
-import IssueList from '@/components/dashboard/IssueList'
+import IssueTabs from '@/components/dashboard/IssueTabs'
 import SnippetPanel from '@/components/dashboard/SnippetPanel'
 import ModeToggle from '@/components/dashboard/ModeToggle'
+import ScanButton from '@/components/dashboard/ScanButton'
+import { computeTechnicalScores, type QualityScore } from '@/lib/analyzer/quality'
 import type { PageSnapshot } from '@/lib/types'
 
 async function getSiteData(siteId: string, userId: string) {
@@ -21,8 +23,8 @@ async function getSiteData(siteId: string, userId: string) {
         take: 1,
         include: {
           issues: {
-            where: { status: 'PENDING' },
             orderBy: [{ severity: 'asc' }],
+            include: { action: true },
           },
         },
       },
@@ -33,11 +35,23 @@ async function getSiteData(siteId: string, userId: string) {
   return fullSite
 }
 
-function TechStatus({ ok, label }: { ok: boolean; label: string }) {
+function TechStatusScore({ score, label }: { score: QualityScore; label: string }) {
+  const dotColor = {
+    A: 'bg-green-500', B: 'bg-green-400', C: 'bg-yellow-400', D: 'bg-orange-400', F: 'bg-red-500',
+  }[score.grade]
+  const bgColor = {
+    A: 'bg-green-50', B: 'bg-green-50', C: 'bg-yellow-50', D: 'bg-orange-50', F: 'bg-red-50',
+  }[score.grade]
+  const textColor = {
+    A: 'text-green-800', B: 'text-green-700', C: 'text-yellow-800', D: 'text-orange-700', F: 'text-red-700',
+  }[score.grade]
+
   return (
-    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${ok ? 'bg-green-50' : 'bg-red-50'}`}>
-      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${ok ? 'bg-green-500' : 'bg-red-500'}`} />
-      <span className={ok ? 'text-green-800' : 'text-red-800'}>{label}</span>
+    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${bgColor}`} title={score.detail}>
+      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
+      <span className={`flex-1 text-sm ${textColor}`}>{label}</span>
+      <span className={`text-xs font-semibold ${textColor}`}>{score.grade}</span>
+      <span className="text-xs text-gray-400">{score.score}/100</span>
     </div>
   )
 }
@@ -50,7 +64,8 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
   if (!site) notFound()
 
   const snapshot = site.snapshots[0]
-  const issues = snapshot?.issues ?? []
+  const allIssues = snapshot?.issues ?? []
+  const issues = allIssues.filter(i => i.status === 'PENDING')
 
   // GEO skoru
   const snapshotData = snapshot ? {
@@ -74,6 +89,20 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
   const aiVisits = (snapshot?.aiCrawlerVisits ?? {}) as Record<string, number>
   const totalVisits = Object.values(aiVisits).reduce((s, v) => s + v, 0)
 
+  const qualityScores = snapshot ? computeTechnicalScores({
+    hasLlmsTxt: snapshot.hasLlmsTxt,
+    llmsTxtContent: snapshot.llmsTxtContent,
+    hasRobotsTxt: snapshot.hasRobotsTxt,
+    robotsBlocksAI: snapshot.robotsBlocksAI,
+    hasSitemap: snapshot.hasSitemap,
+    httpsEnabled: snapshot.httpsEnabled,
+    technicalDetails: snapshot.technicalDetails as {
+      robotsContent?: string | null
+      allowedBots?: string[]
+      sitemapUrlCount?: number | null
+    } | null,
+  }) : null
+
   return (
     <div className="p-8 max-w-5xl">
       {/* Breadcrumb */}
@@ -92,7 +121,10 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
             {site.url} ↗
           </a>
         </div>
-        <ModeToggle siteId={site.id} currentMode={site.mode} />
+        <div className="flex items-center gap-2">
+          <ScanButton siteId={site.id} lastCrawledAt={site.lastCrawledAt} />
+          <ModeToggle siteId={site.id} currentMode={site.mode} />
+        </div>
       </div>
 
       {/* Stats row */}
@@ -131,13 +163,8 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
       <div className="grid grid-cols-3 gap-6">
         {/* Main: issues */}
         <div className="col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-gray-900">
-              Bekleyen İyileştirmeler
-              {issues.length > 0 && (
-                <span className="ml-2 text-sm font-normal text-gray-400">({issues.length})</span>
-              )}
-            </h2>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-base font-semibold text-gray-900">İyileştirmeler</h2>
             {snapshot && (
               <Link href={`/dashboard/${site.id}/reports`}
                 className="text-sm text-blue-600 hover:text-blue-700">
@@ -145,7 +172,7 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
               </Link>
             )}
           </div>
-          <IssueList issues={issues} siteId={site.id} />
+          <IssueTabs allIssues={allIssues} siteId={site.id} />
         </div>
 
         {/* Sidebar: tech status + snippet */}
@@ -155,11 +182,15 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h3 className="text-sm font-semibold text-gray-900 mb-3">Teknik Durum</h3>
               <div className="space-y-2">
-                <TechStatus ok={snapshot.hasLlmsTxt} label="llms.txt" />
-                <TechStatus ok={snapshot.hasRobotsTxt} label="robots.txt" />
-                <TechStatus ok={!snapshot.robotsBlocksAI} label="AI botlara izin" />
-                <TechStatus ok={snapshot.hasSitemap} label="Sitemap" />
-                <TechStatus ok={snapshot.httpsEnabled} label="HTTPS" />
+                {qualityScores ? (
+                  <>
+                    <TechStatusScore score={qualityScores.llmsTxt} label="llms.txt" />
+                    <TechStatusScore score={qualityScores.robotsTxt} label="robots.txt" />
+                    <TechStatusScore score={qualityScores.aiBotAccess} label="AI botlara izin" />
+                    <TechStatusScore score={qualityScores.sitemap} label="Sitemap" />
+                    <TechStatusScore score={qualityScores.https} label="HTTPS" />
+                  </>
+                ) : null}
               </div>
               <p className="text-xs text-gray-400 mt-3">
                 Son tarama: {new Date(snapshot.crawledAt).toLocaleString('tr-TR', {
@@ -195,7 +226,8 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
       {!snapshot && (
         <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200 mt-6">
           <p className="text-gray-500 text-sm font-medium">Site henüz taranmadı.</p>
-          <p className="text-gray-400 text-xs mt-1">İlk crawl otomatik olarak başlatılacak.</p>
+          <p className="text-gray-400 text-xs mt-1 mb-4">İlk analizi başlatmak için aşağıdaki butonu kullanın.</p>
+          <ScanButton siteId={site.id} lastCrawledAt={site.lastCrawledAt} />
         </div>
       )}
     </div>
