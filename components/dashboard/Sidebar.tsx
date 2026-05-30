@@ -3,11 +3,12 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
+import { useState } from 'react'
 
-interface NavItem {
-  label: string
-  href: string
-  icon: React.ReactNode
+interface Site {
+  id: string
+  name: string
+  url: string
 }
 
 function GeoIcon() {
@@ -18,82 +19,159 @@ function GeoIcon() {
   )
 }
 
-function DashboardIcon() {
+function ChevronLeftIcon() {
   return (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-        d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
     </svg>
   )
 }
 
-function DocsIcon() {
+function ChevronRightIcon() {
   return (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
     </svg>
   )
 }
 
-export default function Sidebar() {
+function SiteFavicon({ name }: { name: string }) {
+  return (
+    <div className="w-5 h-5 rounded bg-gray-200 flex items-center justify-center flex-shrink-0">
+      <span className="text-gray-600 text-xs font-semibold leading-none">
+        {name[0]?.toUpperCase() ?? '?'}
+      </span>
+    </div>
+  )
+}
+
+export default function Sidebar({ sites }: { sites: Site[] }) {
   const pathname = usePathname()
   const { data: session } = useSession()
+  const [collapsed, setCollapsed] = useState(false)
 
-  const navItems: NavItem[] = [
-    { label: 'Siteler', href: '/dashboard', icon: <DashboardIcon /> },
-  ]
+  const isSiteActive = (siteId: string) => pathname.startsWith(`/dashboard/${siteId}`)
+  const isSitesActive = pathname === '/dashboard'
 
   return (
-    <aside className="flex flex-col w-56 min-h-screen bg-white border-r border-gray-200 px-3 py-4">
-      {/* Logo */}
-      <div className="flex items-center gap-2 px-2 mb-6">
-        <GeoIcon />
-        <span className="font-semibold text-gray-900">GEO Platform</span>
-      </div>
+    <aside className={`relative flex flex-col min-h-screen bg-white border-r border-gray-200 transition-all duration-200 ${collapsed ? 'w-14' : 'w-56'}`}>
 
-      {/* Nav */}
-      <nav className="flex-1 space-y-0.5">
-        {navItems.map(item => {
-          const isActive = item.href === '/dashboard'
-            ? pathname === '/dashboard'
-            : pathname.startsWith(item.href)
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-sm transition-colors ${
-                isActive
-                  ? 'bg-blue-50 text-blue-700 font-medium'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-              }`}
-            >
-              {item.icon}
-              {item.label}
-            </Link>
-          )
-        })}
-      </nav>
+      {/* Toggle button */}
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        className="absolute -right-3 top-5 z-10 w-6 h-6 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:border-gray-300 shadow-sm transition-colors"
+        title={collapsed ? 'Genişlet' : 'Daralt'}
+      >
+        {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+      </button>
 
-      {/* User */}
-      <div className="border-t border-gray-200 pt-3 mt-3">
-        <div className="flex items-center gap-2 px-2 mb-2">
-          <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-            <span className="text-blue-700 text-xs font-semibold">
-              {session?.user?.name?.[0]?.toUpperCase() ?? session?.user?.email?.[0]?.toUpperCase() ?? '?'}
-            </span>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-gray-900 truncate">{session?.user?.name ?? 'Kullanıcı'}</p>
-            <p className="text-xs text-gray-400 truncate">{session?.user?.email}</p>
-          </div>
+      <div className="flex flex-col flex-1 px-2 py-4 overflow-hidden">
+        {/* Logo */}
+        <div className={`flex items-center gap-2 px-2 mb-6 ${collapsed ? 'justify-center' : ''}`}>
+          <GeoIcon />
+          {!collapsed && <span className="font-semibold text-gray-900 whitespace-nowrap">GEO Platform</span>}
         </div>
-        <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          className="w-full text-left px-2 py-1.5 text-xs text-gray-500 hover:text-gray-800 rounded-lg hover:bg-gray-100 transition-colors"
-        >
-          Çıkış yap
-        </button>
+
+        {/* Siteler nav */}
+        <nav className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden">
+          {/* "Siteler" ana link */}
+          <Link
+            href="/dashboard"
+            className={`flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-sm transition-colors ${
+              isSitesActive
+                ? 'bg-blue-50 text-blue-700 font-medium'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            } ${collapsed ? 'justify-center' : ''}`}
+            title={collapsed ? 'Siteler' : undefined}
+          >
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            {!collapsed && <span>Siteler</span>}
+          </Link>
+
+          {/* Site listesi */}
+          {sites.length > 0 && !collapsed && (
+            <div className="mt-1 space-y-0.5">
+              {sites.map(site => {
+                const active = isSiteActive(site.id)
+                return (
+                  <Link
+                    key={site.id}
+                    href={`/dashboard/${site.id}`}
+                    className={`flex items-center gap-2 pl-4 pr-2 py-1.5 rounded-lg text-sm transition-colors ${
+                      active
+                        ? 'bg-blue-50 text-blue-700 font-medium'
+                        : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                    }`}
+                  >
+                    <SiteFavicon name={site.name} />
+                    <span className="truncate">{site.name}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Collapsed hâlde site ikonları */}
+          {sites.length > 0 && collapsed && (
+            <div className="mt-1 space-y-0.5">
+              {sites.map(site => {
+                const active = isSiteActive(site.id)
+                return (
+                  <Link
+                    key={site.id}
+                    href={`/dashboard/${site.id}`}
+                    className={`flex items-center justify-center px-2 py-1.5 rounded-lg transition-colors ${
+                      active ? 'bg-blue-50' : 'hover:bg-gray-100'
+                    }`}
+                    title={site.name}
+                  >
+                    <SiteFavicon name={site.name} />
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </nav>
+
+        {/* User */}
+        <div className="border-t border-gray-200 pt-3 mt-3">
+          {!collapsed ? (
+            <>
+              <div className="flex items-center gap-2 px-2 mb-2">
+                <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <span className="text-blue-700 text-xs font-semibold">
+                    {session?.user?.name?.[0]?.toUpperCase() ?? session?.user?.email?.[0]?.toUpperCase() ?? '?'}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-gray-900 truncate">{session?.user?.name ?? 'Kullanıcı'}</p>
+                  <p className="text-xs text-gray-400 truncate">{session?.user?.email}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                className="w-full text-left px-2 py-1.5 text-xs text-gray-500 hover:text-gray-800 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                Çıkış yap
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => signOut({ callbackUrl: '/login' })}
+              className="w-full flex items-center justify-center px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+              title="Çıkış yap"
+            >
+              <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+                <span className="text-blue-700 text-xs font-semibold">
+                  {session?.user?.name?.[0]?.toUpperCase() ?? session?.user?.email?.[0]?.toUpperCase() ?? '?'}
+                </span>
+              </div>
+            </button>
+          )}
+        </div>
       </div>
     </aside>
   )

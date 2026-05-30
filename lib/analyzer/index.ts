@@ -1,5 +1,4 @@
 import { db } from '@/lib/db'
-import { Prisma } from '@prisma/client'
 import type { IssueInput, PageSnapshot, SnapshotData } from '@/lib/types'
 import { runAllRules } from './rules'
 import { analyzePagesBatched } from './llm'
@@ -139,25 +138,6 @@ export async function runAnalysis(snapshotId: string): Promise<IssueInput[]> {
   }
 
   const allIssues = [...ruleIssues, ...contentIssues]
-
-  // 3. Issue'ları DB'ye kaydet
-  if (allIssues.length > 0) {
-    await db.issue.createMany({
-      data: allIssues.map(i => ({
-        snapshotId: i.snapshotId,
-        severity: i.severity,
-        category: i.category,
-        title: i.title,
-        description: i.description,
-        impact: i.impact,
-        actionType: i.actionType,
-        actionPayload: i.actionPayload !== undefined
-          ? (i.actionPayload as Prisma.InputJsonValue)
-          : Prisma.JsonNull,
-        status: 'PENDING',
-      })),
-    })
-  }
 
   return allIssues
 }

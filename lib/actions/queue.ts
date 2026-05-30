@@ -17,12 +17,6 @@ export async function queueActions(
 
   const site = await db.site.findUniqueOrThrow({ where: { id: siteId } })
 
-  // Mevcut açık issue'ları kapat (PENDING olanları) — yeniden çekildiğinde eski sorunların üstüne yazma
-  await db.issue.updateMany({
-    where: { snapshotId, status: 'PENDING' },
-    data: { status: 'DISMISSED' },
-  })
-
   // Tüm issue'ları PENDING olarak kaydet
   const created = await db.$transaction(
     issues.map(i =>

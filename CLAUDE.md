@@ -3,9 +3,9 @@
 ## Proje Özeti
 GEO (Generative Engine Optimization) SaaS platformu. ChatGPT, Claude, Perplexity gibi AI arama motorlarında site görünürlüğünü analiz eder ve otomatik iyileştirir.
 
-**Branch:** `claude/geo-platform-crawl-analysis-BXaUw`
+**Branch:** `main`
 **Repo:** `ozgasl/GEO-Platform`
-**Versiyon:** v0.1.1
+**Versiyon:** v0.1.3
 
 ---
 
@@ -131,19 +131,24 @@ components/dashboard/
   IssueList.tsx    — Pending issue'lar + approve/dismiss
   ModeToggle.tsx   — ADVISOR ↔ PILOT
   SnippetPanel.tsx — Monitoring snippet
+  Sidebar.tsx      — Collapsible sidebar; sites prop (layout'tan), site listesi + navigasyon
 ```
 
 ---
 
-## Bilinen Kısıtlamalar (v0.1.1)
+## Bilinen Kısıtlamalar (v0.1.3)
 
 1. **Playwright + Vercel:** Serverless'ta çalışmaz; ayrı worker gerektirir
 2. **"Şimdi Tara" fire-and-forget:** Yerel dev için yeterli; production'da Inngest eventi kullanılmalı
 3. **applyAction imzası:** `applyAction(issueId, appliedBy)` — sadece 2 parametre
-4. **Google OAuth:** Henüz test edilmedi (GOOGLE_CLIENT_ID boş bırakılabilir)
+4. **Google OAuth session.user.id:** `getSessionUser()` kullan; `auth()` ile gelen `session.user.id` Google OAuth subject ID'si, DB CUID değil
+
+## Kritik Mimari Not
+- `runAnalysis()` SADECE analiz yapar, DB'ye yazmaz — IssueInput[] döner
+- `queueActions()` DB'ye yazar (create) ve PILOT modda auto-apply yapar
+- Bu ayrımı bozma: aksi hâlde her issue çiftlenir (DISMISSED + PENDING)
 
 ## Sonraki Adımlar (v0.2)
-- Google OAuth canlı testi
 - Vercel deploy + Playwright worker (Railway/Fly.io)
 - Plan limiti kontrolleri (STARTER: 1 site)
 - Stripe entegrasyonu

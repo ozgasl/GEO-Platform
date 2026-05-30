@@ -46,13 +46,32 @@ function TechStatusScore({ score, label }: { score: QualityScore; label: string 
     A: 'text-green-800', B: 'text-green-700', C: 'text-yellow-800', D: 'text-orange-700', F: 'text-red-700',
   }[score.grade]
 
+  const hasRecommendation = !!score.recommendation
+
+  if (!hasRecommendation) {
+    return (
+      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${bgColor}`}>
+        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
+        <span className={`flex-1 text-sm ${textColor}`}>{label}</span>
+        <span className={`text-xs font-semibold ${textColor}`}>{score.grade}</span>
+        <span className="text-xs text-gray-400">{score.score}/100</span>
+      </div>
+    )
+  }
+
   return (
-    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${bgColor}`} title={score.detail}>
-      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
-      <span className={`flex-1 text-sm ${textColor}`}>{label}</span>
-      <span className={`text-xs font-semibold ${textColor}`}>{score.grade}</span>
-      <span className="text-xs text-gray-400">{score.score}/100</span>
-    </div>
+    <details className={`rounded-lg ${bgColor} group`}>
+      <summary className={`flex items-center gap-2 px-3 py-2 cursor-pointer list-none select-none`}>
+        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
+        <span className={`flex-1 text-sm ${textColor}`}>{label}</span>
+        <span className={`text-xs font-semibold ${textColor}`}>{score.grade}</span>
+        <span className="text-xs text-gray-400">{score.score}/100</span>
+        <span className={`text-xs ml-1 ${textColor} opacity-50 group-open:rotate-180 transition-transform`}>▾</span>
+      </summary>
+      <div className={`px-3 pb-3 pt-1 text-xs ${textColor} opacity-80 leading-relaxed whitespace-pre-line`}>
+        {score.recommendation}
+      </div>
+    </details>
   )
 }
 
