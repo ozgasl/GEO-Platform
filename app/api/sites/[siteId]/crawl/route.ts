@@ -1,6 +1,6 @@
 import { ok, err, unauthorized, notFound, getSessionUser, requireSiteOwner } from '@/lib/api-utils'
 import { db } from '@/lib/db'
-import { runCrawlPipeline } from '@/lib/crawler/pipeline'
+import { inngest } from '@/lib/inngest/client'
 
 const COOLDOWN_MS = 5 * 60 * 1000 // 5 dakika
 
@@ -23,14 +23,10 @@ export async function POST(
     }
   }
 
-  // lastCrawledAt'ı hemen güncelle (cooldown guard için)
-  await db.site.update({
-    where: { id: params.siteId },
-    data: { lastCrawledAt: new Date() },
+  await inngest.send({
+    name: 'geo/site.crawl.requested',
+    data: { siteId: params.siteId, triggeredBy: 'MANUAL' as const },
   })
-
-  // Fire-and-forget: pipeline yanıt beklemeden arka planda çalışır
-  void runCrawlPipeline(params.siteId)
 
   return ok({ started: true, message: 'Tarama başlatıldı. 3-5 dakika sürebilir.' }, 202)
 }
