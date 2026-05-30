@@ -150,6 +150,9 @@ components/dashboard/
 - **Dockerfile tag = package.json sürümü:** `mcr.microsoft.com/playwright:v1.49.0-noble`. Sürüm uyuşmazsa Playwright yanlış tarayıcıyı arar ve patlar.
 - **"Şimdi Tara" artık Inngest eventi:** `/api/sites/[siteId]/crawl` `inngest.send({ name: "geo/site.crawl.requested" })` gönderir, `runCrawlPipeline` doğrudan çağrılmaz.
 - **RESEND_API_KEY Railway'de gerekli:** `weekly-report` ve `generate-report` jobları email gönderir; Railway env'e eklenmelidir.
+- **Neon pooled/direct ayrımı zorunlu:** Vercel (serverless) = pooled URL (`-pooler` hostname); Railway worker = DIRECT_URL; `prisma migrate deploy` daima DIRECT_URL üzerinden. Yanlış kurulursa yük gelince bağlantılar tükenir.
+  - `DATABASE_URL` = `postgresql://...@ep-...-pooler.../neondb?sslmode=require`
+  - `DIRECT_URL` = `postgresql://...@ep-....../neondb?sslmode=require` (pooler yok)
 
 ## Kritik Mimari Not
 - `runAnalysis()` SADECE analiz yapar, DB'ye yazmaz — IssueInput[] döner
