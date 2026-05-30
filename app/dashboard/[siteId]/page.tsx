@@ -8,6 +8,7 @@ import IssueTabs from '@/components/dashboard/IssueTabs'
 import SnippetPanel from '@/components/dashboard/SnippetPanel'
 import ModeToggle from '@/components/dashboard/ModeToggle'
 import ScanButton from '@/components/dashboard/ScanButton'
+import { computeTechnicalScores, type QualityScore } from '@/lib/analyzer/quality'
 import type { PageSnapshot } from '@/lib/types'
 
 async function getSiteData(siteId: string, userId: string) {
@@ -34,11 +35,23 @@ async function getSiteData(siteId: string, userId: string) {
   return fullSite
 }
 
-function TechStatus({ ok, label }: { ok: boolean; label: string }) {
+function TechStatusScore({ score, label }: { score: QualityScore; label: string }) {
+  const dotColor = {
+    A: 'bg-green-500', B: 'bg-green-400', C: 'bg-yellow-400', D: 'bg-orange-400', F: 'bg-red-500',
+  }[score.grade]
+  const bgColor = {
+    A: 'bg-green-50', B: 'bg-green-50', C: 'bg-yellow-50', D: 'bg-orange-50', F: 'bg-red-50',
+  }[score.grade]
+  const textColor = {
+    A: 'text-green-800', B: 'text-green-700', C: 'text-yellow-800', D: 'text-orange-700', F: 'text-red-700',
+  }[score.grade]
+
   return (
-    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${ok ? 'bg-green-50' : 'bg-red-50'}`}>
-      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${ok ? 'bg-green-500' : 'bg-red-500'}`} />
-      <span className={ok ? 'text-green-800' : 'text-red-800'}>{label}</span>
+    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${bgColor}`} title={score.detail}>
+      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
+      <span className={`flex-1 text-sm ${textColor}`}>{label}</span>
+      <span className={`text-xs font-semibold ${textColor}`}>{score.grade}</span>
+      <span className="text-xs text-gray-400">{score.score}/100</span>
     </div>
   )
 }
@@ -75,6 +88,20 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
 
   const aiVisits = (snapshot?.aiCrawlerVisits ?? {}) as Record<string, number>
   const totalVisits = Object.values(aiVisits).reduce((s, v) => s + v, 0)
+
+  const qualityScores = snapshot ? computeTechnicalScores({
+    hasLlmsTxt: snapshot.hasLlmsTxt,
+    llmsTxtContent: snapshot.llmsTxtContent,
+    hasRobotsTxt: snapshot.hasRobotsTxt,
+    robotsBlocksAI: snapshot.robotsBlocksAI,
+    hasSitemap: snapshot.hasSitemap,
+    httpsEnabled: snapshot.httpsEnabled,
+    technicalDetails: snapshot.technicalDetails as {
+      robotsContent?: string | null
+      allowedBots?: string[]
+      sitemapUrlCount?: number | null
+    } | null,
+  }) : null
 
   return (
     <div className="p-8 max-w-5xl">
@@ -155,11 +182,15 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h3 className="text-sm font-semibold text-gray-900 mb-3">Teknik Durum</h3>
               <div className="space-y-2">
-                <TechStatus ok={snapshot.hasLlmsTxt} label="llms.txt" />
-                <TechStatus ok={snapshot.hasRobotsTxt} label="robots.txt" />
-                <TechStatus ok={!snapshot.robotsBlocksAI} label="AI botlara izin" />
-                <TechStatus ok={snapshot.hasSitemap} label="Sitemap" />
-                <TechStatus ok={snapshot.httpsEnabled} label="HTTPS" />
+                {qualityScores ? (
+                  <>
+                    <TechStatusScore score={qualityScores.llmsTxt} label="llms.txt" />
+                    <TechStatusScore score={qualityScores.robotsTxt} label="robots.txt" />
+                    <TechStatusScore score={qualityScores.aiBotAccess} label="AI botlara izin" />
+                    <TechStatusScore score={qualityScores.sitemap} label="Sitemap" />
+                    <TechStatusScore score={qualityScores.https} label="HTTPS" />
+                  </>
+                ) : null}
               </div>
               <p className="text-xs text-gray-400 mt-3">
                 Son tarama: {new Date(snapshot.crawledAt).toLocaleString('tr-TR', {

@@ -96,6 +96,9 @@ model Snapshot {
   // AI bot ziyaret logları (monitoring snippet entegrasyonu ile)
   aiCrawlerVisits Json? // { gptbot: number, claudebot: number, perplexitybot: number }
 
+  // Teknik detaylar — kalite skoru hesabı için (robotsContent, allowedBots, sitemapUrlCount)
+  technicalDetails Json?
+
   // Karşılaştırma için önceki snapshot
   previousSnapshotId String?
 
