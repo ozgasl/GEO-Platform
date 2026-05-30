@@ -3,7 +3,7 @@ FROM mcr.microsoft.com/playwright:v1.49.0-noble
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 # prisma generate DB bağlantısı gerektirmez — sadece schema'dan client üretir
 COPY prisma ./prisma/
