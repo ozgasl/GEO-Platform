@@ -120,7 +120,7 @@ lib/
   inngest/functions.ts   — crawl-site, scheduled-crawl, weekly-report, generate-report
 
 app/api/sites/[siteId]/
-  crawl/route.ts         — POST: "Şimdi Tara" tetikleme (fire-and-forget)
+  crawl/route.ts         — POST: "Şimdi Tara" tetikleme (inngest.send → geo/site.crawl.requested)
   issues/[id]/approve    — POST: applyAction
   issues/[id]/dismiss    — POST: DISMISSED
   actions/[id]/revert    — POST: revertAction
@@ -139,9 +139,17 @@ components/dashboard/
 ## Bilinen Kısıtlamalar (v0.1.3)
 
 1. **Playwright + Vercel:** Serverless'ta çalışmaz; ayrı worker gerektirir
-2. **"Şimdi Tara" fire-and-forget:** Yerel dev için yeterli; production'da Inngest eventi kullanılmalı
+2. **"Şimdi Tara" Inngest eventi:** `geo/site.crawl.requested` event'i gönderir; Railway'deki `crawl-site` job çalıştırır
 3. **applyAction imzası:** `applyAction(issueId, appliedBy)` — sadece 2 parametre
 4. **Google OAuth session.user.id:** `getSessionUser()` kullan; `auth()` ile gelen `session.user.id` Google OAuth subject ID'si, DB CUID değil
+
+## Deployment Mimarisi Kararları (v0.2)
+
+- **Railway = Inngest worker:** Tüm Inngest fonksiyonları (crawl, cron, report) Railway'de serve edilir. Playwright burada çalışır.
+- **Vercel'i Inngest'e ASLA sync etme:** `serve()` sadece Railway'de. Vercel'de olursa çift cron + issue çiftlenmesi yaşanır.
+- **Dockerfile tag = package.json sürümü:** `mcr.microsoft.com/playwright:v1.49.0-noble`. Sürüm uyuşmazsa Playwright yanlış tarayıcıyı arar ve patlar.
+- **"Şimdi Tara" artık Inngest eventi:** `/api/sites/[siteId]/crawl` `inngest.send({ name: "geo/site.crawl.requested" })` gönderir, `runCrawlPipeline` doğrudan çağrılmaz.
+- **RESEND_API_KEY Railway'de gerekli:** `weekly-report` ve `generate-report` jobları email gönderir; Railway env'e eklenmelidir.
 
 ## Kritik Mimari Not
 - `runAnalysis()` SADECE analiz yapar, DB'ye yazmaz — IssueInput[] döner
