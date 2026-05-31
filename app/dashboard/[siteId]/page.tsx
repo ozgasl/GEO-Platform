@@ -149,8 +149,8 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
         <div className="flex items-center gap-3 min-w-0">
           <h1 className="text-2xl font-bold text-gray-900 truncate">{brandName(site.url || site.name)}</h1>
           <a href={site.url} target="_blank" rel="noopener noreferrer"
-            className="text-sm text-gray-400 hover:text-blue-600 flex-shrink-0">
-            {site.url} ↗
+            className="text-gray-400 hover:text-blue-600 flex-shrink-0 text-lg leading-none">
+            ↗
           </a>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
