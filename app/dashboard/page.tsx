@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getSessionUser } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import AddSiteForm from '@/components/dashboard/AddSiteForm'
+import { OnboardingFlow } from '@/components/onboarding'
 
 async function getSites(userId: string) {
   return db.site.findMany({
@@ -40,6 +41,10 @@ export default async function DashboardPage() {
 
   const sites = await getSites(user.id)
 
+  if (sites.length === 0) {
+    return <OnboardingFlow />
+  }
+
   return (
     <div className="p-8 max-w-5xl">
       {/* Header */}
@@ -57,14 +62,8 @@ export default async function DashboardPage() {
       </div>
 
       {/* Site list */}
-      {sites.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-xl border border-dashed border-gray-300">
-          <p className="text-gray-400 text-sm">Henüz site eklemediniz.</p>
-          <p className="text-gray-400 text-sm mt-1">Yukarıdaki formu kullanarak ilk sitenizi ekleyin.</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {sites.map(site => {
+      <div className="space-y-3">
+        {sites.map(site => {
             const snapshot = site.snapshots[0]
             const pendingIssues = snapshot?.issues ?? []
             const criticals = pendingIssues.filter(i => i.severity === 'CRITICAL').length
@@ -147,8 +146,7 @@ export default async function DashboardPage() {
               </Link>
             )
           })}
-        </div>
-      )}
+      </div>
     </div>
   )
 }

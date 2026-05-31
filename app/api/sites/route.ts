@@ -1,6 +1,14 @@
 import { ok, err, unauthorized, getSessionUser } from '@/lib/api-utils'
 import { db } from '@/lib/db'
+import { inngest } from '@/lib/inngest/client'
+import { Plan } from '@prisma/client'
 import { z } from 'zod'
+
+const PLAN_SITE_LIMITS: Record<Plan, number> = {
+  [Plan.STARTER]:   1,
+  [Plan.AGENCY_5]:  5,
+  [Plan.AGENCY_20]: 20,
+}
 
 const CreateSiteSchema = z.object({
   url: z.string().url('Geçerli bir URL giriniz.'),
@@ -45,6 +53,25 @@ export async function POST(request: Request) {
   const existing = await db.site.findFirst({ where: { userId: user.id, url } })
   if (existing) return err('Bu URL zaten eklenmiş.', 409)
 
+  // Plan limiti kontrolü
+  const userWithPlan = await db.user.findUnique({
+    where: { id: user.id },
+    select: { plan: true, _count: { select: { sites: true } } },
+  })
+  if (userWithPlan) {
+    const limit = PLAN_SITE_LIMITS[userWithPlan.plan]
+    if (userWithPlan._count.sites >= limit) {
+      return new Response(
+        JSON.stringify({
+          error: 'plan_limit',
+          message: 'Plan limitine ulaştınız. Yükseltmek için upgrade sayfasını ziyaret edin.',
+          limit,
+        }),
+        { status: 403, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
   const site = await db.site.create({
     data: {
       userId: user.id,
@@ -52,6 +79,16 @@ export async function POST(request: Request) {
       name: name ?? new URL(url).hostname,
     },
   })
+
+  // İlk taramayı otomatik başlat
+  try {
+    await inngest.send({
+      name: 'geo/site.crawl.requested',
+      data: { siteId: site.id, triggeredBy: 'MANUAL' },
+    })
+  } catch {
+    // Inngest yoksa (local dev) sessizce devam et — site oluşturma başarılı
+  }
 
   return ok(site, 201)
 }
