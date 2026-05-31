@@ -3,7 +3,17 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-export default function AddSiteForm() {
+interface Site {
+  id: string
+  url: string
+  name: string
+}
+
+interface AddSiteFormProps {
+  onSuccess?: (site: Site) => void
+}
+
+export default function AddSiteForm({ onSuccess }: AddSiteFormProps = {}) {
   const router = useRouter()
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
@@ -29,7 +39,11 @@ export default function AddSiteForm() {
     }
 
     setUrl('')
-    router.refresh()
+    if (onSuccess) {
+      onSuccess(data as Site)
+    } else {
+      router.refresh()
+    }
   }
 
   return (
