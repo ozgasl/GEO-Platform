@@ -157,9 +157,7 @@ interface IssueItemProps {
 function IssueItem({ issue, siteId, siteMode }: IssueItemProps) {
   const router = useRouter()
   const [loading, setLoading] = useState<'apply' | 'preview' | 'complete' | 'dismiss' | null>(null)
-  const [expanded, setExpanded] = useState(false)
   const [preview, setPreview] = useState<{ after?: string; instructions?: string } | null>(null)
-  const [copied, setCopied] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [deployOpen, setDeployOpen] = useState(false)
   const [artifactCopied, setArtifactCopied] = useState(false)
@@ -183,6 +181,7 @@ function IssueItem({ issue, siteId, siteMode }: IssueItemProps) {
     setLoading(null)
     if (res.ok) {
       setPreview({ after: data.after, instructions: data.instructions })
+      setDeployOpen(true)
     } else {
       setActionError(data.error ?? 'Önizleme oluşturulamadı. Lütfen tekrar deneyin.')
     }
@@ -221,13 +220,6 @@ function IssueItem({ issue, siteId, siteMode }: IssueItemProps) {
     router.refresh()
   }
 
-  async function copyToClipboard() {
-    if (!preview?.after) return
-    await navigator.clipboard.writeText(preview.after)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       <div className="p-4">
@@ -251,8 +243,8 @@ function IssueItem({ issue, siteId, siteMode }: IssueItemProps) {
               💡 {issue.impact}
             </p>
 
-            {/* Deploy Instructions (Advisor + PENDING only) */}
-            {artifact && (
+            {/* Deploy Talimatı — shows AI-generated content when available, template otherwise */}
+            {(artifact || preview) && issue.status === 'PENDING' && (
               <div className="mt-2">
                 <button
                   onClick={() => setDeployOpen(prev => !prev)}
@@ -260,16 +252,23 @@ function IssueItem({ issue, siteId, siteMode }: IssueItemProps) {
                 >
                   <span>{deployOpen ? '▾' : '▸'}</span>
                   <span>📋 Deploy Talimatı</span>
+                  {preview && <span className="ml-1 text-indigo-400 font-normal">(AI ile oluşturuldu)</span>}
                 </button>
 
                 {deployOpen && (
                   <div className="mt-2 bg-indigo-50 border border-indigo-200 rounded-lg p-3">
-                    <p className="text-xs text-indigo-700 mb-2">{artifact.instruction}</p>
+                    <p className="text-xs text-indigo-700 mb-2">
+                      {preview?.instructions ?? artifact?.instruction}
+                    </p>
                     <pre className="text-xs bg-white rounded p-2 overflow-auto max-h-56 border border-indigo-200 whitespace-pre-wrap font-mono leading-relaxed">
-                      {artifact.code}
+                      {preview?.after ?? artifact?.code}
                     </pre>
                     <button
-                      onClick={copyArtifact}
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(preview?.after ?? artifact?.code ?? '')
+                        setArtifactCopied(true)
+                        setTimeout(() => setArtifactCopied(false), 2000)
+                      }}
                       className="mt-1.5 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
                     >
                       {artifactCopied ? '✓ Kopyalandı!' : 'Kopyala'}
@@ -284,39 +283,6 @@ function IssueItem({ issue, siteId, siteMode }: IssueItemProps) {
               <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1.5 border border-red-100 mt-2">
                 ⚠ {actionError}
               </p>
-            )}
-
-            {/* ADVISOR: preview result box */}
-            {siteMode === 'ADVISOR' && preview && (
-              <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-xs font-semibold text-blue-800 mb-1">Önerilen Aksiyon</p>
-                {preview.instructions && (
-                  <p className="text-xs text-blue-700 mb-2">{preview.instructions}</p>
-                )}
-                {preview.after && (
-                  <>
-                    <button
-                      onClick={() => setExpanded(!expanded)}
-                      className="text-xs text-blue-600 underline"
-                    >
-                      {expanded ? 'İçeriği gizle' : 'Önerilen içeriği gör'}
-                    </button>
-                    {expanded && (
-                      <div className="mt-2">
-                        <pre className="text-xs bg-white rounded p-2 overflow-auto max-h-48 border border-blue-200 whitespace-pre-wrap">
-                          {preview.after}
-                        </pre>
-                        <button
-                          onClick={copyToClipboard}
-                          className="mt-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
-                        >
-                          {copied ? '✓ Kopyalandı!' : 'Kopyala'}
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
             )}
           </div>
         </div>

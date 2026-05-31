@@ -35,11 +35,24 @@ function ChevronRightIcon() {
   )
 }
 
-function SiteFavicon({ name }: { name: string }) {
+function brandName(nameOrUrl: string): string {
+  try {
+    const host = new URL(nameOrUrl.startsWith('http') ? nameOrUrl : `https://${nameOrUrl}`).hostname
+    const bare = host.replace(/^www\./, '')
+    const brand = bare.split('.')[0]
+    return brand.charAt(0).toUpperCase() + brand.slice(1)
+  } catch {
+    const bare = nameOrUrl.replace(/^www\./, '')
+    const brand = bare.split('.')[0]
+    return brand.charAt(0).toUpperCase() + brand.slice(1)
+  }
+}
+
+function SiteFavicon({ label }: { label: string }) {
   return (
     <div className="w-5 h-5 rounded bg-gray-200 flex items-center justify-center flex-shrink-0">
       <span className="text-gray-600 text-xs font-semibold leading-none">
-        {name[0]?.toUpperCase() ?? '?'}
+        {label[0]?.toUpperCase() ?? '?'}
       </span>
     </div>
   )
@@ -106,8 +119,8 @@ export default function Sidebar({ sites }: { sites: Site[] }) {
                         : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
                     }`}
                   >
-                    <SiteFavicon name={site.name} />
-                    <span className="truncate">{site.name}</span>
+                    <SiteFavicon label={brandName(site.url || site.name)} />
+                    <span className="truncate">{brandName(site.url || site.name)}</span>
                   </Link>
                 )
               })}
@@ -126,9 +139,9 @@ export default function Sidebar({ sites }: { sites: Site[] }) {
                     className={`flex items-center justify-center px-2 py-1.5 rounded-lg transition-colors ${
                       active ? 'bg-blue-50' : 'hover:bg-gray-100'
                     }`}
-                    title={site.name}
+                    title={brandName(site.url || site.name)}
                   >
-                    <SiteFavicon name={site.name} />
+                    <SiteFavicon label={brandName(site.url || site.name)} />
                   </Link>
                 )
               })}
