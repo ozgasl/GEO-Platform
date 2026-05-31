@@ -15,8 +15,9 @@ model User {
   name          String?
   emailVerified DateTime?
   image         String?
-  plan          Plan      @default(STARTER)
-  createdAt     DateTime  @default(now())
+  plan           Plan      @default(STARTER)
+  freeReportUsed Boolean   @default(false)
+  createdAt      DateTime  @default(now())
   sites         Site[]
   sessions      Session[]
   accounts      Account[]
