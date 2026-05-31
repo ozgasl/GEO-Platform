@@ -24,6 +24,7 @@ interface Issue {
   actionType: string
   status: string
   action: Action | null
+  actionPayload?: unknown
 }
 
 const SEVERITY_STYLE: Record<string, string> = {
