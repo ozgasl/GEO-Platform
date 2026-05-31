@@ -38,3 +38,6 @@ Thumbs.db
 
 # Playwright browsers
 playwright/.cache/
+
+# Git worktrees
+.worktrees/
