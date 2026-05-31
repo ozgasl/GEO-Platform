@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSessionUser, requireSiteOwner } from '@/lib/api-utils'
 import { db } from '@/lib/db'
+import { computeTechnicalScores, type QualityScore } from '@/lib/analyzer/quality'
 
 function formatDate(date: Date): string {
   const mm = String(date.getMonth() + 1).padStart(2, '0')
@@ -30,13 +31,13 @@ function renderPayload(actionType: string, payload: unknown): string {
     return `**Uygulama Talimatı:**\n${p.instruction}`
   }
   if (p.fixType === 'generate_llms_txt' || p.fixType === 'regenerate_llms_txt') {
-    return `**Aksiyon:** GEO Platform bu dosyayı site içeriğinizden otomatik oluşturacak. Dashboard'dan "Onayla" butonunu kullanın.`
+    return `**Aksiyon:** GEO Platform bu dosyayı site içeriğinizden otomatik oluşturacak. Dashboard'dan "Göster" butonunu kullanın.`
   }
   if (p.fixType === 'update_llms_txt' && Array.isArray(p.newPageUrls)) {
     return `**Eklenecek Sayfalar:**\n${(p.newPageUrls as string[]).map(u => `- ${u}`).join('\n')}`
   }
   if (p.fixType === 'add_schema') {
-    return `**Schema Türü:** ${p.schemaType}\n**Sayfa:** ${p.url}\n\nGEO Platform bu sayfaya ${p.schemaType} JSON-LD kodu ekleyecek. Dashboard'dan "Onayla" butonunu kullanın.`
+    return `**Schema Türü:** ${p.schemaType}\n**Sayfa:** ${p.url}\n\nGEO Platform bu sayfaya ${p.schemaType} JSON-LD kodu ekleyecek. Dashboard'dan "Göster" butonunu kullanın.`
   }
   if (p.recommendation) {
     return `**Öneri:** ${p.recommendation}`
@@ -46,6 +47,40 @@ function renderPayload(actionType: string, payload: unknown): string {
   }
 
   return `\`\`\`json\n${JSON.stringify(p, null, 2)}\n\`\`\``
+}
+
+const GRADE_EMOJI: Record<string, string> = { A: '🟢', B: '🟡', C: '🟡', D: '🟠', F: '🔴' }
+
+function buildTechStatusTable(
+  scores: ReturnType<typeof computeTechnicalScores>,
+  pageCount: number
+): string[] {
+  const rows = [
+    { label: 'HTTPS',          s: scores.https },
+    { label: 'llms.txt',       s: scores.llmsTxt },
+    { label: 'robots.txt',     s: scores.robotsTxt },
+    { label: 'AI Botlara İzin', s: scores.aiBotAccess },
+    { label: 'Sitemap',        s: scores.sitemap },
+  ]
+
+  const lines: string[] = [
+    `| Kontrol | Not | Skor |`,
+    `|---------|-----|------|`,
+    ...rows.map(r => `| ${r.label} | ${GRADE_EMOJI[r.s.grade]} ${r.s.grade} | ${r.s.score}/100 |`),
+    `| Taranan Sayfa | — | ${pageCount} |`,
+    ``,
+  ]
+
+  const withRecs = rows.filter(r => r.s.grade !== 'A' && r.s.recommendation)
+  if (withRecs.length > 0) {
+    lines.push(`### Teknik Öneriler`, ``)
+    for (const { label, s } of withRecs) {
+      lines.push(`- **${label} (${s.grade}):** ${s.recommendation}`)
+    }
+    lines.push(``)
+  }
+
+  return lines
 }
 
 type Issue = {
@@ -63,7 +98,9 @@ function buildActionPlan(
   report: { generatedAt: Date; period: string; summary: string },
   issues: Issue[],
   siteName: string,
-  siteUrl: string
+  siteUrl: string,
+  qualityScores: ReturnType<typeof computeTechnicalScores> | null,
+  pageCount: number
 ): string {
   const pendingIssues = issues.filter(i => i.status === 'PENDING')
   const severityOrder: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
@@ -72,7 +109,7 @@ function buildActionPlan(
   )
 
   const lines: string[] = [
-    `# GEO Action Plan — ${siteName}`,
+    `# GEO Aksiyon Planı — ${siteName}`,
     ``,
     `| Alan | Değer |`,
     `|------|-------|`,
@@ -85,9 +122,16 @@ function buildActionPlan(
     ``,
     `---`,
     ``,
-    `## Bekleyen İyileştirmeler`,
-    ``,
   ]
+
+  // Teknik Durum
+  if (qualityScores) {
+    lines.push(`## Teknik Durum`, ``)
+    lines.push(...buildTechStatusTable(qualityScores, pageCount))
+    lines.push(`---`, ``)
+  }
+
+  lines.push(`## Bekleyen İyileştirmeler`, ``)
 
   if (sorted.length === 0) {
     lines.push('Bekleyen issue bulunamadı. Site iyi durumda!')
@@ -128,6 +172,7 @@ type Snapshot = {
   hasSitemap: boolean
   httpsEnabled: boolean
   pages: unknown
+  technicalDetails: unknown
 }
 
 function buildReportMd(
@@ -145,7 +190,9 @@ function buildReportMd(
   snapshot: Snapshot | null,
   siteName: string,
   siteUrl: string,
-  prevReport: { issuesFound: number; issuesFixed: number } | null
+  prevReport: { issuesFound: number; issuesFixed: number } | null,
+  qualityScores: ReturnType<typeof computeTechnicalScores> | null,
+  pageCount: number
 ): string {
   const lines: string[] = [
     `# GEO Raporu — ${siteName}`,
@@ -165,36 +212,37 @@ function buildReportMd(
     ``,
   ]
 
-  // Technical status from snapshot
+  // Teknik Durum — enhanced with grades and scores
   if (snapshot) {
-    const ok = '✅'
-    const fail = '❌'
-    const pageCount = Array.isArray(snapshot.pages) ? snapshot.pages.length : 0
-    lines.push(`## Teknik Durum`)
-    lines.push(``)
-    lines.push(`| Kontrol | Durum |`)
-    lines.push(`|---------|-------|`)
-    lines.push(`| HTTPS | ${snapshot.httpsEnabled ? ok : fail} |`)
-    lines.push(`| llms.txt | ${snapshot.hasLlmsTxt ? ok : fail} |`)
-    lines.push(`| robots.txt | ${snapshot.hasRobotsTxt ? ok : fail} |`)
-    lines.push(`| AI Botlar Engelli | ${snapshot.robotsBlocksAI ? `${fail} Evet` : `${ok} Hayır`} |`)
-    lines.push(`| Sitemap | ${snapshot.hasSitemap ? ok : fail} |`)
-    lines.push(`| Taranan Sayfa | ${pageCount} |`)
-    lines.push(``)
+    lines.push(`## Teknik Durum`, ``)
+
+    if (qualityScores) {
+      lines.push(...buildTechStatusTable(qualityScores, pageCount))
+    } else {
+      // Fallback: simple ✅/❌ table if scores unavailable
+      const ok = '✅', fail = '❌'
+      lines.push(`| Kontrol | Durum |`)
+      lines.push(`|---------|-------|`)
+      lines.push(`| HTTPS | ${snapshot.httpsEnabled ? ok : fail} |`)
+      lines.push(`| llms.txt | ${snapshot.hasLlmsTxt ? ok : fail} |`)
+      lines.push(`| robots.txt | ${snapshot.hasRobotsTxt ? ok : fail} |`)
+      lines.push(`| AI Botlar Engelli | ${snapshot.robotsBlocksAI ? `${fail} Evet` : `${ok} Hayır`} |`)
+      lines.push(`| Sitemap | ${snapshot.hasSitemap ? ok : fail} |`)
+      lines.push(`| Taranan Sayfa | ${pageCount} |`)
+      lines.push(``)
+    }
 
     if (snapshot.hasLlmsTxt && snapshot.llmsTxtContent) {
-      lines.push(`### Mevcut llms.txt İçeriği`)
-      lines.push(``)
+      lines.push(`### Mevcut llms.txt İçeriği`, ``)
       lines.push(`\`\`\``)
-      lines.push(snapshot.llmsTxtContent.trim())
+      lines.push((snapshot.llmsTxtContent as string).trim())
       lines.push(`\`\`\``)
       lines.push(``)
     }
   }
 
   // Stats
-  lines.push(`## İstatistikler`)
-  lines.push(``)
+  lines.push(`## İstatistikler`, ``)
   lines.push(`| Metrik | Değer |`)
   lines.push(`|--------|-------|`)
   lines.push(`| Bulunan issue | ${report.issuesFound} |`)
@@ -208,8 +256,7 @@ function buildReportMd(
   if (prevReport) {
     const issueDelta = report.issuesFound - prevReport.issuesFound
     const fixedDelta = report.issuesFixed - prevReport.issuesFixed
-    lines.push(`## Önceki Dönemle Karşılaştırma`)
-    lines.push(``)
+    lines.push(`## Önceki Dönemle Karşılaştırma`, ``)
     lines.push(`| Metrik | Önceki | Şu An | Değişim |`)
     lines.push(`|--------|--------|-------|---------|`)
     lines.push(`| Bulunan issue | ${prevReport.issuesFound} | ${report.issuesFound} | ${issueDelta >= 0 ? '+' : ''}${issueDelta} |`)
@@ -219,8 +266,7 @@ function buildReportMd(
 
   // All findings grouped by severity
   if (issues.length > 0) {
-    lines.push(`## Tüm Bulgular`)
-    lines.push(``)
+    lines.push(`## Tüm Bulgular`, ``)
 
     const severityGroups: Record<string, Issue[]> = { CRITICAL: [], HIGH: [], MEDIUM: [], LOW: [] }
     for (const issue of issues) {
@@ -237,11 +283,9 @@ function buildReportMd(
 
     for (const [severity, group] of Object.entries(severityGroups)) {
       if (group.length === 0) continue
-      lines.push(`### ${severityLabel[severity]}`)
-      lines.push(``)
+      lines.push(`### ${severityLabel[severity]}`, ``)
       for (const issue of group) {
-        lines.push(`#### ${issue.title}`)
-        lines.push(``)
+        lines.push(`#### ${issue.title}`, ``)
         lines.push(`**Durum:** ${statusLabel[issue.status] ?? issue.status} &nbsp;|&nbsp; **Kategori:** ${issue.category} &nbsp;|&nbsp; **Aksiyon:** ${issue.actionType}`)
         lines.push(``)
         lines.push(issue.description)
@@ -297,12 +341,31 @@ export async function GET(
           hasSitemap: true,
           httpsEnabled: true,
           pages: true,
+          technicalDetails: true,
         },
       })
     : null
 
+  const pageCount = Array.isArray(snapshot?.pages) ? (snapshot!.pages as unknown[]).length : 0
+
+  const qualityScores = snapshot
+    ? computeTechnicalScores({
+        hasLlmsTxt: snapshot.hasLlmsTxt,
+        llmsTxtContent: snapshot.llmsTxtContent,
+        hasRobotsTxt: snapshot.hasRobotsTxt,
+        robotsBlocksAI: snapshot.robotsBlocksAI,
+        hasSitemap: snapshot.hasSitemap,
+        httpsEnabled: snapshot.httpsEnabled,
+        technicalDetails: snapshot.technicalDetails as {
+          robotsContent?: string | null
+          allowedBots?: string[]
+          sitemapUrlCount?: number | null
+        } | null,
+      })
+    : null
+
   if (type === 'action-plan') {
-    const content = buildActionPlan(report, issues, site.name, site.url)
+    const content = buildActionPlan(report, issues, site.name, site.url, qualityScores, pageCount)
     return new NextResponse(content, {
       headers: {
         'Content-Type': 'text/markdown; charset=utf-8',
@@ -317,7 +380,7 @@ export async function GET(
     select: { issuesFound: true, issuesFixed: true },
   })
 
-  const content = buildReportMd(report, issues, snapshot, site.name, site.url, prevReport)
+  const content = buildReportMd(report, issues, snapshot, site.name, site.url, prevReport, qualityScores, pageCount)
   return new NextResponse(content, {
     headers: {
       'Content-Type': 'text/markdown; charset=utf-8',

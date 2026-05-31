@@ -81,7 +81,7 @@ export default async function ReportsPage({ params }: { params: { siteId: string
                         download
                         className="text-xs px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-medium transition-colors"
                       >
-                        Action Plan
+                        Aksiyon Planı
                       </a>
                       <a
                         href={`${base}?type=report`}
