@@ -14,6 +14,14 @@ export interface ApplyResult {
   isReversible: boolean
 }
 
+export interface PreviewResult {
+  changeType: string
+  before: string | null
+  after: string
+  instructions: string
+  isReversible: boolean
+}
+
 // ----- Yardımcılar -----
 
 async function fetchText(url: string): Promise<string | null> {
@@ -222,6 +230,40 @@ async function applyFaqSuggestion(
 
 // ----- Ana fonksiyon -----
 
+/** İçerik üretimi — DB yazma olmadan. applyAction ve previewAction tarafından paylaşılır. */
+async function generateContent(issueId: string): Promise<PreviewResult> {
+  const issue = await db.issue.findUniqueOrThrow({
+    where: { id: issueId },
+    include: {
+      snapshot: {
+        include: { site: true },
+      },
+    },
+  })
+
+  const snapshotData = dbSnapshotToData(issue.snapshot)
+  const siteUrl = issue.snapshot.site.url
+  const payload = (issue.actionPayload ?? {}) as Record<string, unknown>
+  const fixType = (payload.fixType as string) ??
+    (payload.schemaType ? 'add_schema' : issue.actionType)
+
+  switch (fixType) {
+    case 'generate_llms_txt':
+    case 'update_llms_txt':
+    case 'regenerate_llms_txt':
+      return applyLlmsTxtUpdate(snapshotData, siteUrl)
+
+    case 'robots_allow_ai_bots':
+      return applyRobotsFix(siteUrl)
+
+    case 'add_schema':
+      return applySchemaInjection(payload, snapshotData)
+
+    default:
+      return applyFaqSuggestion(payload)
+  }
+}
+
 /**
  * Bir issue için uygun aksiyonu uygular, Action kaydı oluşturur.
  * Issue status → APPLIED güncellenir.
@@ -254,33 +296,7 @@ export async function applyAction(
     }
   }
 
-  const snapshotData = dbSnapshotToData(issue.snapshot)
-  const siteUrl = issue.snapshot.site.url
-  const payload = (issue.actionPayload ?? {}) as Record<string, unknown>
-  const fixType = (payload.fixType as string) ??
-    (payload.schemaType ? 'add_schema' : issue.actionType)
-
-  let result: Awaited<ReturnType<typeof applyLlmsTxtUpdate>>
-
-  switch (fixType) {
-    case 'generate_llms_txt':
-    case 'update_llms_txt':
-    case 'regenerate_llms_txt':
-      result = await applyLlmsTxtUpdate(snapshotData, siteUrl)
-      break
-
-    case 'robots_allow_ai_bots':
-      result = await applyRobotsFix(siteUrl)
-      break
-
-    case 'add_schema':
-      result = await applySchemaInjection(payload, snapshotData)
-      break
-
-    default:
-      // CONTENT_SUGGESTION / FAQ / diğerleri
-      result = await applyFaqSuggestion(payload)
-  }
+  const result = await generateContent(issueId)
 
   // DB transaction: Action oluştur + Issue status güncelle
   const [action] = await db.$transaction([
@@ -310,4 +326,9 @@ export async function applyAction(
     instructions: result.instructions,
     isReversible: result.isReversible,
   }
+}
+
+/** ADVISOR modu için: içerik üretir ama DB'ye yazmaz. */
+export async function previewAction(issueId: string): Promise<PreviewResult> {
+  return generateContent(issueId)
 }

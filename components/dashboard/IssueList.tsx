@@ -34,25 +34,53 @@ const ACTION_TYPE_LABEL: Record<string, string> = {
 interface IssueItemProps {
   issue: Issue
   siteId: string
+  siteMode: 'ADVISOR' | 'PILOT'
 }
 
-function IssueItem({ issue, siteId }: IssueItemProps) {
+function IssueItem({ issue, siteId, siteMode }: IssueItemProps) {
   const router = useRouter()
-  const [loading, setLoading] = useState<'approve' | 'dismiss' | null>(null)
+  const [loading, setLoading] = useState<'apply' | 'preview' | 'complete' | 'dismiss' | null>(null)
   const [expanded, setExpanded] = useState(false)
-  const [result, setResult] = useState<{ after?: string; instructions?: string } | null>(null)
-  const [applyError, setApplyError] = useState<string | null>(null)
+  const [preview, setPreview] = useState<{ after?: string; instructions?: string } | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
-  async function approve() {
-    setLoading('approve')
-    setApplyError(null)
+  async function showPreview() {
+    setLoading('preview')
+    setActionError(null)
+    const res = await fetch(`/api/sites/${siteId}/issues/${issue.id}/preview`, { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    setLoading(null)
+    if (res.ok) {
+      setPreview({ after: data.after, instructions: data.instructions })
+    } else {
+      setActionError(data.error ?? 'Önizleme oluşturulamadı. Lütfen tekrar deneyin.')
+    }
+  }
+
+  async function markComplete() {
+    setLoading('complete')
+    setActionError(null)
     const res = await fetch(`/api/sites/${siteId}/issues/${issue.id}/approve`, { method: 'POST' })
     const data = await res.json().catch(() => ({}))
     setLoading(null)
     if (res.ok) {
-      setResult({ after: data.after, instructions: data.instructions })
+      router.refresh()
     } else {
-      setApplyError(data.error ?? 'Aksiyon uygulanamadı. Lütfen tekrar deneyin.')
+      setActionError(data.error ?? 'Tamamlanamadı. Lütfen tekrar deneyin.')
+    }
+  }
+
+  async function applyPilot() {
+    setLoading('apply')
+    setActionError(null)
+    const res = await fetch(`/api/sites/${siteId}/issues/${issue.id}/approve`, { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    setLoading(null)
+    if (res.ok) {
+      router.refresh()
+    } else {
+      setActionError(data.error ?? 'Aksiyon uygulanamadı. Lütfen tekrar deneyin.')
     }
   }
 
@@ -61,6 +89,13 @@ function IssueItem({ issue, siteId }: IssueItemProps) {
     await fetch(`/api/sites/${siteId}/issues/${issue.id}/dismiss`, { method: 'POST' })
     setLoading(null)
     router.refresh()
+  }
+
+  async function copyToClipboard() {
+    if (!preview?.after) return
+    await navigator.clipboard.writeText(preview.after)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -86,41 +121,42 @@ function IssueItem({ issue, siteId }: IssueItemProps) {
               💡 {issue.impact}
             </p>
 
-            {/* Apply error */}
-            {applyError && (
+            {/* Error */}
+            {actionError && (
               <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1.5 border border-red-100 mt-2">
-                ⚠ {applyError}
+                ⚠ {actionError}
               </p>
             )}
 
-            {/* Result */}
-            {result && (
-              <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs font-medium text-green-800">✓ Aksiyon uygulandı</p>
-                  <button
-                    onClick={() => { setResult(null); router.refresh() }}
-                    className="text-xs text-green-600 hover:text-green-800"
-                    title="Kapat ve listeyi güncelle"
-                  >
-                    ✕ Kapat
-                  </button>
-                </div>
-                {result.instructions && (
-                  <p className="text-xs text-green-700">{result.instructions}</p>
+            {/* ADVISOR: preview result box */}
+            {siteMode === 'ADVISOR' && preview && (
+              <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs font-semibold text-blue-800 mb-1">Önerilen Aksiyon</p>
+                {preview.instructions && (
+                  <p className="text-xs text-blue-700 mb-2">{preview.instructions}</p>
                 )}
-                {result.after && (
-                  <button
-                    onClick={() => setExpanded(!expanded)}
-                    className="text-xs text-green-600 underline mt-1"
-                  >
-                    {expanded ? 'İçeriği gizle' : 'Oluşturulan içeriği gör'}
-                  </button>
-                )}
-                {expanded && result.after && (
-                  <pre className="mt-2 text-xs bg-white rounded p-2 overflow-auto max-h-48 border border-green-200 whitespace-pre-wrap">
-                    {result.after}
-                  </pre>
+                {preview.after && (
+                  <>
+                    <button
+                      onClick={() => setExpanded(!expanded)}
+                      className="text-xs text-blue-600 underline"
+                    >
+                      {expanded ? 'İçeriği gizle' : 'Önerilen içeriği gör'}
+                    </button>
+                    {expanded && (
+                      <div className="mt-2">
+                        <pre className="text-xs bg-white rounded p-2 overflow-auto max-h-48 border border-blue-200 whitespace-pre-wrap">
+                          {preview.after}
+                        </pre>
+                        <button
+                          onClick={copyToClipboard}
+                          className="mt-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                        >
+                          {copied ? '✓ Kopyalandı!' : 'Kopyala'}
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -129,23 +165,55 @@ function IssueItem({ issue, siteId }: IssueItemProps) {
       </div>
 
       {/* Actions */}
-      {issue.status === 'PENDING' && !result && (
+      {issue.status === 'PENDING' && (
         <div className="flex border-t border-gray-100">
-          <button
-            onClick={approve}
-            disabled={!!loading}
-            className="flex-1 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
-          >
-            {loading === 'approve' ? '…' : '✓ Uygula'}
-          </button>
-          <div className="w-px bg-gray-100" />
-          <button
-            onClick={dismiss}
-            disabled={!!loading}
-            className="flex-1 py-2.5 text-sm text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-50"
-          >
-            {loading === 'dismiss' ? '…' : 'Yoksay'}
-          </button>
+          {siteMode === 'PILOT' ? (
+            <>
+              <button
+                onClick={applyPilot}
+                disabled={!!loading}
+                className="flex-1 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
+              >
+                {loading === 'apply' ? '…' : '✓ Uygula'}
+              </button>
+              <div className="w-px bg-gray-100" />
+              <button
+                onClick={dismiss}
+                disabled={!!loading}
+                className="flex-1 py-2.5 text-sm text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                {loading === 'dismiss' ? '…' : 'Yoksay'}
+              </button>
+            </>
+          ) : (
+            <>
+              {!preview ? (
+                <button
+                  onClick={showPreview}
+                  disabled={!!loading}
+                  className="flex-1 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                >
+                  {loading === 'preview' ? '…' : '↗ Göster'}
+                </button>
+              ) : (
+                <button
+                  onClick={markComplete}
+                  disabled={!!loading}
+                  className="flex-1 py-2.5 text-sm font-medium text-green-700 hover:bg-green-50 transition-colors disabled:opacity-50"
+                >
+                  {loading === 'complete' ? '…' : '✓ Tamamlandı'}
+                </button>
+              )}
+              <div className="w-px bg-gray-100" />
+              <button
+                onClick={dismiss}
+                disabled={!!loading}
+                className="flex-1 py-2.5 text-sm text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                {loading === 'dismiss' ? '…' : 'Yoksay'}
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -155,9 +223,10 @@ function IssueItem({ issue, siteId }: IssueItemProps) {
 interface IssueListProps {
   issues: Issue[]
   siteId: string
+  siteMode: 'ADVISOR' | 'PILOT'
 }
 
-export default function IssueList({ issues, siteId }: IssueListProps) {
+export default function IssueList({ issues, siteId, siteMode }: IssueListProps) {
   if (issues.length === 0) {
     return (
       <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-200">
@@ -169,7 +238,7 @@ export default function IssueList({ issues, siteId }: IssueListProps) {
   return (
     <div className="space-y-3">
       {issues.map(issue => (
-        <IssueItem key={issue.id} issue={issue} siteId={siteId} />
+        <IssueItem key={issue.id} issue={issue} siteId={siteId} siteMode={siteMode} />
       ))}
     </div>
   )

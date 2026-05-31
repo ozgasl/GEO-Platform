@@ -119,9 +119,10 @@ function CompletedIssueItem({ issue, siteId }: { issue: Issue; siteId: string })
 interface IssueTabsProps {
   allIssues: Issue[]
   siteId: string
+  siteMode: 'ADVISOR' | 'PILOT'
 }
 
-export default function IssueTabs({ allIssues, siteId }: IssueTabsProps) {
+export default function IssueTabs({ allIssues, siteId, siteMode }: IssueTabsProps) {
   const [tab, setTab] = useState<'pending' | 'completed'>('pending')
 
   const pending = allIssues.filter(i => i.status === 'PENDING')
@@ -165,7 +166,7 @@ export default function IssueTabs({ allIssues, siteId }: IssueTabsProps) {
 
       {/* Tab content */}
       {tab === 'pending' && (
-        <IssueList issues={pending} siteId={siteId} />
+        <IssueList issues={pending} siteId={siteId} siteMode={siteMode} />
       )}
 
       {tab === 'completed' && (

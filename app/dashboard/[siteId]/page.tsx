@@ -191,7 +191,7 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
               </Link>
             )}
           </div>
-          <IssueTabs allIssues={allIssues} siteId={site.id} />
+          <IssueTabs allIssues={allIssues} siteId={site.id} siteMode={site.mode} />
         </div>
 
         {/* Sidebar: tech status + snippet */}
