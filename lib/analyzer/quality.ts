@@ -6,7 +6,7 @@ export interface QualityScore {
   recommendation?: string
 }
 
-const AI_BOTS = ['GPTBot', 'ClaudeBot', 'PerplexityBot', 'OAI-SearchBot']
+const AI_BOTS = ['GPTBot', 'ClaudeBot', 'PerplexityBot', 'OAI-SearchBot', 'Google-Extended']
 
 function toGrade(score: number): QualityScore['grade'] {
   if (score >= 90) return 'A'
@@ -92,7 +92,7 @@ export function scoreRobotsTxt(
     }
   }
 
-  let score = 60
+  let score = 50
   const details: string[] = ['mevcut']
   const missing: string[] = []
 
@@ -102,12 +102,15 @@ export function scoreRobotsTxt(
     const agentCount = (robotsContent.match(/^User-agent:/gim) ?? []).length
     if (agentCount >= 2) { score += 20; details.push(`${agentCount} ajan kuralı`) }
     else missing.push('birden fazla User-agent kuralı')
+    const hasAiBotRules = /GPTBot|ClaudeBot|PerplexityBot|OAI-SearchBot|Google-Extended/i.test(robotsContent)
+    if (hasAiBotRules) { score += 20; details.push('AI bot kuralları') }
+    else missing.push('AI bot explicit izinleri (GPTBot, ClaudeBot, PerplexityBot, Google-Extended)')
   }
 
   score = Math.min(score, 100)
   const grade = toGrade(score)
   const recommendation = missing.length > 0
-    ? `Eklemeler yaparak skoru artırın: ${missing.join(', ')}.`
+    ? `Skoru 100\'e çıkarmak için ekleyin: ${missing.join(', ')}.`
     : undefined
 
   return { score, grade, label: toLabel(grade), detail: details.join(', '), recommendation }
@@ -121,13 +124,13 @@ export function scoreAiBotAccess(
   if (robotsBlocksAI) {
     return {
       score: 0, grade: 'F', label: 'Engelli', detail: 'AI botlar erişemiyor.',
-      recommendation: 'robots.txt\'ten AI bot Disallow kurallarını kaldırın. GPTBot, ClaudeBot, PerplexityBot ve OAI-SearchBot için "Allow: /" ekleyin.',
+      recommendation: 'robots.txt\'ten AI bot Disallow kurallarını kaldırın. GPTBot, ClaudeBot, PerplexityBot, OAI-SearchBot ve Google-Extended için "Allow: /" ekleyin.',
     }
   }
   if (!hasRobotsTxt) {
     return {
       score: 50, grade: 'C', label: 'Varsayılan', detail: 'robots.txt yok, botlar varsayılan olarak serbest.',
-      recommendation: 'robots.txt oluşturun ve şu kuralları ekleyin:\nUser-agent: GPTBot\nAllow: /\n\nUser-agent: ClaudeBot\nAllow: /\n\nUser-agent: PerplexityBot\nAllow: /',
+      recommendation: 'robots.txt oluşturun ve şu kuralları ekleyin:\nUser-agent: GPTBot\nAllow: /\n\nUser-agent: ClaudeBot\nAllow: /\n\nUser-agent: PerplexityBot\nAllow: /\n\nUser-agent: Google-Extended\nAllow: /\n\nUser-agent: OAI-SearchBot\nAllow: /',
     }
   }
 
@@ -135,10 +138,11 @@ export function scoreAiBotAccess(
   let score = 50
   const foundBots: string[] = []
 
-  if (allowed.includes('GPTBot')) { score += 20; foundBots.push('GPTBot') }
-  if (allowed.includes('ClaudeBot')) { score += 15; foundBots.push('ClaudeBot') }
+  if (allowed.includes('GPTBot')) { score += 15; foundBots.push('GPTBot') }
+  if (allowed.includes('ClaudeBot')) { score += 12; foundBots.push('ClaudeBot') }
   if (allowed.includes('PerplexityBot')) { score += 10; foundBots.push('PerplexityBot') }
-  if (allowed.includes('OAI-SearchBot')) { score += 5; foundBots.push('OAI-SearchBot') }
+  if (allowed.includes('OAI-SearchBot')) { score += 8; foundBots.push('OAI-SearchBot') }
+  if (allowed.includes('Google-Extended')) { score += 5; foundBots.push('Google-Extended') }
 
   score = Math.min(score, 100)
   const grade = toGrade(score)
@@ -147,7 +151,7 @@ export function scoreAiBotAccess(
     : 'Genel izin var, explicit kural yok.'
 
   const missingBots = AI_BOTS.filter(b => !allowed.includes(b))
-  const recommendation = missingBots.length > 0 && grade !== 'A'
+  const recommendation = missingBots.length > 0 && score < 100
     ? `robots.txt\'e şu botlar için explicit "Allow: /" ekleyin: ${missingBots.join(', ')}.`
     : undefined
 
@@ -175,8 +179,8 @@ export function scoreSitemap(hasSitemap: boolean, urlCount?: number | null): Qua
   else score = 70
 
   const grade = toGrade(score)
-  const recommendation = urlCount < 11
-    ? `Sitemap\'te yalnızca ${urlCount} URL var. Tüm önemli sayfaları (ürün, hizmet, blog) sitemap\'e ekleyin.`
+  const recommendation = urlCount < 50
+    ? `Sitemap\'te ${urlCount} URL var. 50+ URL ile skor 100\'e ulaşır — tüm ürün, hizmet ve blog sayfalarını sitemap\'e ekleyin.`
     : undefined
 
   return { score, grade, label: toLabel(grade), detail: `${urlCount} URL`, recommendation }

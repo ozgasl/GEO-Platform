@@ -71,11 +71,11 @@ function buildTechStatusTable(
     ``,
   ]
 
-  const withRecs = rows.filter(r => r.s.grade !== 'A' && r.s.recommendation)
+  const withRecs = rows.filter(r => r.s.recommendation)
   if (withRecs.length > 0) {
     lines.push(`### Teknik Öneriler`, ``)
     for (const { label, s } of withRecs) {
-      lines.push(`- **${label} (${s.grade}):** ${s.recommendation}`)
+      lines.push(`- **${label} (${s.grade} ${s.score}/100):** ${s.recommendation}`)
     }
     lines.push(``)
   }
@@ -131,10 +131,20 @@ function buildActionPlan(
     lines.push(`---`, ``)
   }
 
+  // Teknik Durum önerilerini topla (score < 100 olan tüm maddeler)
+  const techRecs = qualityScores
+    ? Object.entries(qualityScores)
+        .filter(([, s]) => (s as QualityScore).recommendation)
+        .map(([, s]) => s as QualityScore)
+    : []
+
   lines.push(`## Bekleyen İyileştirmeler`, ``)
 
-  if (sorted.length === 0) {
-    lines.push('Bekleyen issue bulunamadı. Site iyi durumda!')
+  if (sorted.length === 0 && techRecs.length === 0) {
+    lines.push('Tüm kontroller geçti. Site mükemmel durumda! 🎉')
+  } else if (sorted.length === 0) {
+    lines.push('Aktif issue bulunamadı. Aşağıdaki Teknik Durum önerilerine göz atın.')
+    lines.push(``)
   } else {
     sorted.forEach((issue, idx) => {
       const severityLabel: Record<string, string> = {

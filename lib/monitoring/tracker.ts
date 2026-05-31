@@ -3,13 +3,34 @@ import { decryptToken } from './snippet'
 
 /** Bilinen AI bot UA pattern'ları → canonical bot adı */
 const BOT_PATTERNS: Array<{ pattern: RegExp; name: string }> = [
-  { pattern: /GPTBot/i,         name: 'gptbot' },
-  { pattern: /OAI-SearchBot/i,  name: 'oai_searchbot' },
-  { pattern: /ClaudeBot/i,      name: 'claudebot' },
-  { pattern: /anthropic-ai/i,   name: 'claudebot' },
-  { pattern: /PerplexityBot/i,  name: 'perplexitybot' },
-  { pattern: /Googlebot/i,      name: 'googlebot' },
-  { pattern: /bingbot/i,        name: 'bingbot' },
+  // OpenAI
+  { pattern: /GPTBot/i,            name: 'gptbot' },
+  { pattern: /OAI-SearchBot/i,     name: 'oai_searchbot' },
+  { pattern: /ChatGPT-User/i,      name: 'chatgpt_user' },
+  // Anthropic
+  { pattern: /ClaudeBot/i,         name: 'claudebot' },
+  { pattern: /anthropic-ai/i,      name: 'claudebot' },
+  // Perplexity
+  { pattern: /PerplexityBot/i,     name: 'perplexitybot' },
+  // Google
+  { pattern: /Google-Extended/i,   name: 'google_extended' },
+  { pattern: /Googlebot/i,         name: 'googlebot' },
+  // Meta
+  { pattern: /meta-externalagent/i, name: 'meta_ai' },
+  // Apple
+  { pattern: /Applebot-Extended/i, name: 'applebot_extended' },
+  // You.com
+  { pattern: /YouBot/i,            name: 'youbot' },
+  // Amazon
+  { pattern: /Amazonbot/i,         name: 'amazonbot' },
+  // DuckDuckGo
+  { pattern: /DuckAssistBot/i,     name: 'duckassistbot' },
+  // ByteDance / TikTok
+  { pattern: /Bytespider/i,        name: 'bytespider' },
+  // Cohere
+  { pattern: /cohere-ai/i,         name: 'cohere_ai' },
+  // Bing
+  { pattern: /bingbot/i,           name: 'bingbot' },
 ]
 
 /**

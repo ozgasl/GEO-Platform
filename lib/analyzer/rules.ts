@@ -13,8 +13,7 @@ function issue(
 
 /**
  * robots.txt AI bot engelleme kontrolü.
- * GPTBot, ClaudeBot, PerplexityBot, OAI-SearchBot için Disallow varsa CRITICAL issue.
- * Tüm siteyi engelleyen global Disallow: / varsa HIGH issue.
+ * GPTBot, ClaudeBot, PerplexityBot, OAI-SearchBot, Google-Extended için Disallow varsa CRITICAL issue.
  */
 export function checkRobotsTxt(snapshot: SnapshotData): IssueInput | null {
   if (!snapshot.hasRobotsTxt) {
@@ -50,7 +49,7 @@ export function checkRobotsTxt(snapshot: SnapshotData): IssueInput | null {
     actionPayload: {
       fixType: 'robots_allow_ai_bots',
       instruction:
-        'Mevcut robots.txt içeriğine şu satırları ekle:\n\nUser-agent: GPTBot\nAllow: /\n\nUser-agent: ClaudeBot\nAllow: /\n\nUser-agent: PerplexityBot\nAllow: /\n\nUser-agent: OAI-SearchBot\nAllow: /',
+        'Mevcut robots.txt içeriğine şu satırları ekle:\n\nUser-agent: GPTBot\nAllow: /\n\nUser-agent: OAI-SearchBot\nAllow: /\n\nUser-agent: ChatGPT-User\nAllow: /\n\nUser-agent: ClaudeBot\nAllow: /\n\nUser-agent: PerplexityBot\nAllow: /\n\nUser-agent: Google-Extended\nAllow: /\n\nUser-agent: meta-externalagent\nAllow: /\n\nUser-agent: YouBot\nAllow: /\n\nUser-agent: DuckAssistBot\nAllow: /\n\nUser-agent: Applebot-Extended\nAllow: /',
     },
   })
 }
