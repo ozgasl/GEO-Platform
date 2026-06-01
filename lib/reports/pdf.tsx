@@ -1,20 +1,16 @@
 import { Document, Page, View, Text, StyleSheet, Font } from '@react-pdf/renderer'
 import React from 'react'
-import path from 'path'
+import { NOTO_SANS_REGULAR, NOTO_SANS_BOLD } from './font-data'
 
 const BLUE = '#2563EB'
 
-// @fontsource/noto-sans: WOFF files from node_modules — reliable in Vercel serverless.
-// Register both latin (covers ü ö ç) and latin-ext (covers ş ğ ı İ) for Turkish support.
-const fontsDir = path.join(process.cwd(), 'node_modules', '@fontsource', 'noto-sans', 'files')
-
+// Fonts embedded as base64 data URIs — no HTTP requests, no filesystem access needed.
+// Works reliably on Vercel serverless, Railway, and local environments.
 Font.register({
   family: 'NotoSans',
   fonts: [
-    { src: path.join(fontsDir, 'noto-sans-latin-400-normal.woff') },
-    { src: path.join(fontsDir, 'noto-sans-latin-700-normal.woff'), fontWeight: 'bold' },
-    { src: path.join(fontsDir, 'noto-sans-latin-ext-400-normal.woff') },
-    { src: path.join(fontsDir, 'noto-sans-latin-ext-700-normal.woff'), fontWeight: 'bold' },
+    { src: NOTO_SANS_REGULAR },
+    { src: NOTO_SANS_BOLD, fontWeight: 'bold' },
   ],
 })
 

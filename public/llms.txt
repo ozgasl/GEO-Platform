@@ -1,0 +1,33 @@
+# Obsey
+
+> Obsey is a GEO (Generative Engine Optimization) SaaS platform that analyzes and improves website visibility on AI search engines like ChatGPT, Claude, and Perplexity.
+
+## What Obsey Does
+
+Obsey crawls your website using AI bot user-agents, detects issues that reduce your visibility on AI search engines, and automatically generates fixes. It produces downloadable action plans and reports, tracks AI bot visits, and helps website owners ensure their content is indexed and cited by AI systems.
+
+## Key Features
+
+- AI visibility analysis: detects missing llms.txt, robots.txt issues, schema markup gaps, and thin content
+- Automated fixes in Pilot mode: llms.txt generation, schema injection, robots.txt repair
+- Detailed reports and action plans downloadable as PDF or Markdown
+- AI bot visit monitoring (GPTBot, ClaudeBot, PerplexityBot, Google-Extended)
+- GEO score: a 0–100 grade showing how well a site is optimized for AI search
+
+## Pages
+
+- https://obsey.io/: Home — GEO platform overview and pricing
+- https://obsey.io/dashboard: User dashboard — site list and GEO scores
+- https://obsey.io/dashboard/upgrade: Pricing plans (Free trial, Starter, Growth, Scale)
+- https://obsey.io/login: Sign in with Google or email
+
+## Target Users
+
+Website owners, digital marketers, and agencies who want their content to appear in ChatGPT, Claude, Perplexity, and other AI-powered search results.
+
+## Pricing
+
+- Free: 1 site, 1 report (trial)
+- Starter: ~1.000 TL/month, 1 site, unlimited scans
+- Growth: ~3.200 TL/month, 5 sites, unlimited scans
+- Scale: ~8.000 TL/month, 20 sites, unlimited scans

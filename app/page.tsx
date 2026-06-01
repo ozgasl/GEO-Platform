@@ -1,6 +1,37 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/auth'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'Obsey — AI Arama Motorlarında Görünürlük',
+  description: 'ChatGPT, Claude ve Perplexity gibi AI sistemlerinde sitenizin görünürlüğünü analiz edin, eksiklikleri otomatik tespit edin ve GEO skorunuzu artırın.',
+}
+
+const organizationSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'Obsey',
+  url: 'https://obsey.io',
+  description: 'GEO (Generative Engine Optimization) SaaS platform. AI arama motorlarında site görünürlüğünü analiz eder ve otomatik olarak iyileştirir.',
+  sameAs: ['https://obsey.io'],
+}
+
+const softwareSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Obsey',
+  applicationCategory: 'BusinessApplication',
+  operatingSystem: 'Web',
+  url: 'https://obsey.io',
+  description: 'Sitenizin ChatGPT, Claude ve Perplexity gibi AI arama motorlarında ne kadar iyi göründüğünü analiz eden ve otomatik olarak iyileştiren GEO optimizasyon platformu.',
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'TRY',
+    description: 'İlk rapor ücretsiz. Aylık planlar 1.000 TL\'den başlar.',
+  },
+}
 
 export default async function HomePage() {
   const session = await auth()
@@ -8,6 +39,8 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }} />
       {/* Nav */}
       <nav className="border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
@@ -168,6 +201,45 @@ export default async function HomePage() {
             >
               Başlamak için kayıt olun →
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Why GEO matters */}
+      <section className="py-16 px-4 bg-gray-50">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">Neden GEO Optimizasyonu?</h2>
+          <div className="space-y-4 text-gray-600 text-sm leading-relaxed">
+            <p>
+              ChatGPT, Claude ve Perplexity gibi yapay zeka arama motorları, geleneksel arama motorlarından farklı çalışır.
+              Bu sistemler, web sitelerini doğrudan tarayan botlarla içerik toplar ve kullanıcılara doğrudan yanıtlar sunar.
+              Siteniz bu botlara uygun şekilde yapılandırılmamışsa, AI sistemleri sizi kaynak olarak göstermez.
+            </p>
+            <p>
+              GEO (Generative Engine Optimization), sitenizin yapay zeka arama motorlarında görünür olması için gerekli
+              teknik ve içerik düzenlemelerini kapsar. Bu; <strong>llms.txt dosyası</strong>, AI botlarına izin veren
+              <strong> robots.txt</strong>, yapılandırılmış schema markup ve bilgi yoğun içerik gerektirir.
+            </p>
+            <p>
+              Obsey, bu süreci otomatize eder. Sitenizi AI bot gözünden tarar, eksiklikleri tespit eder ve
+              her sorun için hazır deploy talimatları ile içerik üretir. GEO skoru ve teknik durum raporunuzla
+              hangi adımları atmanız gerektiğini net şekilde görürsünüz.
+            </p>
+          </div>
+
+          <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
+            <div className="bg-white rounded-xl p-5 border border-gray-200">
+              <div className="text-2xl font-bold text-blue-600 mb-1">llms.txt</div>
+              <p className="text-sm text-gray-500">AI sistemlerine sitenizi tanıtan rehber dosya. ChatGPT ve Claude bu dosyayı okur.</p>
+            </div>
+            <div className="bg-white rounded-xl p-5 border border-gray-200">
+              <div className="text-2xl font-bold text-blue-600 mb-1">Schema</div>
+              <p className="text-sm text-gray-500">JSON-LD schema markup ile içeriğinizi yapılandırılmış veri olarak sunun.</p>
+            </div>
+            <div className="bg-white rounded-xl p-5 border border-gray-200">
+              <div className="text-2xl font-bold text-blue-600 mb-1">GEO Skoru</div>
+              <p className="text-sm text-gray-500">0–100 arası puanlama ile AI görünürlüğünüzü ölçün ve takip edin.</p>
+            </div>
           </div>
         </div>
       </section>
