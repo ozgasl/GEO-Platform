@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { useSession } from 'next-auth/react'
 
 export default function NameEditForm({ currentName }: { currentName: string | null }) {
+  const { update } = useSession()
   const [name, setName] = useState(currentName ?? '')
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
@@ -27,6 +29,8 @@ export default function NameEditForm({ currentName }: { currentName: string | nu
         const data = await res.json().catch(() => ({}))
         throw new Error(data?.error ?? 'Bir hata oluştu.')
       }
+      // Refresh the NextAuth session so the sidebar user box updates immediately
+      await update({ name: trimmed })
       setStatus('success')
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Bir hata oluştu.')
