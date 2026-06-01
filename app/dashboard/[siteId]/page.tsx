@@ -136,6 +136,7 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
       allowedBots?: string[]
       sitemapUrlCount?: number | null
     } | null,
+    crawledPageCount: (snapshot.pages as unknown[]).length,
   }) : null
 
   return (

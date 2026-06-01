@@ -382,6 +382,7 @@ export async function GET(
           allowedBots?: string[]
           sitemapUrlCount?: number | null
         } | null,
+        crawledPageCount: pageCount,
       })
     : null
 

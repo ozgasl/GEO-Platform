@@ -5,6 +5,7 @@ import { runAnalysis } from '@/lib/analyzer'
 import { queueActions } from '@/lib/actions/queue'
 import { generateReport } from '@/lib/reports/generator'
 import { sendReportEmail } from '@/lib/reports/email'
+import { sendAlertEmail } from '@/lib/reports/alerts'
 
 const APP_URL = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
 
@@ -114,14 +115,14 @@ export const weeklyReportJob = inngest.createFunction(
     const sites = await step.run('list-sites', async () => {
       return db.site.findMany({
         where: { isActive: true },
-        include: { user: { select: { email: true, name: true } } },
+        include: { user: { select: { email: true, name: true, emailReports: true } } },
       })
     })
 
     let sent = 0
 
     for (const site of sites) {
-      if (!site.user.email) continue
+      if (!site.user.email || !site.user.emailReports) continue
 
       const result = await step.run(`report-${site.id}`, async () => {
         const report = await generateReport(site.id, 'WEEKLY')
@@ -166,12 +167,12 @@ export const generateReportJob = inngest.createFunction(
     const site = await step.run('get-site', async () => {
       return db.site.findUniqueOrThrow({
         where: { id: siteId },
-        include: { user: { select: { email: true } } },
+        include: { user: { select: { email: true, emailReports: true, emailAlerts: true } } },
       })
     })
 
-    if (site.user.email) {
-      await step.run('send-email', async () => {
+    if (site.user.email && site.user.emailReports) {
+      await step.run('send-report-email', async () => {
         const emailResult = await sendReportEmail(report, site.user.email!, site.name, APP_URL)
         if (emailResult.sent) {
           await db.report.update({
@@ -180,6 +181,62 @@ export const generateReportJob = inngest.createFunction(
           })
         }
         return emailResult
+      })
+    }
+
+    if (site.user.email && site.user.emailAlerts) {
+      await step.run('send-alert-email', async () => {
+        const prevReport = await db.report.findFirst({
+          where: { siteId, id: { not: report.reportId }, snapshotId: { not: null } },
+          orderBy: { generatedAt: 'desc' },
+        })
+
+        const prevSnapshotId = prevReport?.snapshotId ?? null
+
+        const [currCritical, currHigh, currTotal] = await Promise.all([
+          db.issue.count({ where: { snapshotId: report.snapshotId, severity: 'CRITICAL' } }),
+          db.issue.count({ where: { snapshotId: report.snapshotId, severity: 'HIGH' } }),
+          db.issue.count({ where: { snapshotId: report.snapshotId } }),
+        ])
+
+        const [prevCritical, prevHigh, prevTotal] = prevSnapshotId
+          ? await Promise.all([
+              db.issue.count({ where: { snapshotId: prevSnapshotId, severity: 'CRITICAL' } }),
+              db.issue.count({ where: { snapshotId: prevSnapshotId, severity: 'HIGH' } }),
+              db.issue.count({ where: { snapshotId: prevSnapshotId } }),
+            ])
+          : [0, 0, 0]
+
+        const newCriticalCount = Math.max(0, currCritical - prevCritical)
+        const newHighCount = Math.max(0, currHigh - prevHigh)
+        const totalNewIssues = Math.max(0, currTotal - prevTotal)
+        const scoreDrop = prevReport?.score != null ? prevReport.score - report.score : 0
+
+        const shouldAlert = newCriticalCount > 0 || scoreDrop >= 10 || totalNewIssues > 0
+        if (!shouldAlert) return { alerted: false }
+
+        const rawTopIssues = await db.issue.findMany({
+          where: { snapshotId: report.snapshotId, severity: { in: ['CRITICAL', 'HIGH'] } },
+          select: { severity: true, title: true },
+          take: 5,
+        })
+
+        await sendAlertEmail(
+          {
+            siteName: site.name,
+            siteUrl: site.url,
+            currentScore: report.score,
+            previousScore: prevReport?.score ?? null,
+            newCriticalCount,
+            newHighCount,
+            totalNewIssues,
+            topNewIssues: rawTopIssues.map(i => ({ severity: String(i.severity), title: i.title })),
+            dashboardUrl: `${APP_URL}/dashboard/sites/${siteId}`,
+          },
+          site.user.email!
+        )
+
+        return { alerted: true, newCriticalCount, scoreDrop }
       })
     }
 

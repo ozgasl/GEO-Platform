@@ -83,4 +83,10 @@ export interface SnapshotData {
   httpsEnabled: boolean
   pages: PageSnapshot[]
   previousSnapshotId: string | null
+  technicalDetails?: {
+    robotsContent?: string | null
+    allowedBots?: string[]
+    blockedBots?: string[]
+    sitemapUrlCount?: number | null
+  } | null
 }

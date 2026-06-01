@@ -102,6 +102,8 @@ export async function generateReport(siteId: string, triggerType: 'MANUAL' | 'WE
       issuesFixed,
       aiCrawlerVisits: totalAiVisits,
       llmsTxtUpdated,
+      score: geoScore.total,
+      grade: geoScore.grade,
     },
   })
 

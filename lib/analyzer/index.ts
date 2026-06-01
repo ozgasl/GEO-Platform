@@ -46,6 +46,7 @@ export async function runAnalysis(snapshotId: string): Promise<IssueInput[]> {
     httpsEnabled: snapshot.httpsEnabled,
     pages,
     previousSnapshotId: snapshot.previousSnapshotId,
+    technicalDetails: snapshot.technicalDetails as SnapshotData['technicalDetails'],
   }
 
   const prevSnapshotData: SnapshotData | undefined = previousSnapshot
@@ -61,6 +62,7 @@ export async function runAnalysis(snapshotId: string): Promise<IssueInput[]> {
         httpsEnabled: previousSnapshot.httpsEnabled,
         pages: prevPages,
         previousSnapshotId: previousSnapshot.previousSnapshotId,
+        technicalDetails: previousSnapshot.technicalDetails as SnapshotData['technicalDetails'],
       }
     : undefined
 

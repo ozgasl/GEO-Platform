@@ -18,6 +18,8 @@ model User {
   image         String?
   plan           Plan      @default(STARTER)
   freeReportUsed Boolean   @default(false)
+  emailReports   Boolean   @default(true)
+  emailAlerts    Boolean   @default(true)
   createdAt      DateTime  @default(now())
   sites         Site[]
   sessions      Session[]
@@ -160,6 +162,9 @@ model Report {
   issuesFixed     Int
   aiCrawlerVisits Int
   llmsTxtUpdated  Boolean
+
+  score Int?    // GEO skoru (0-100) — alert ve trend karşılaştırması için
+  grade String? // A|B|C|D|F
 
   emailSentAt DateTime?
 }

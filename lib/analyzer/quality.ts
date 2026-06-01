@@ -10,6 +10,20 @@ export interface QualityScore {
 
 const AI_BOTS = ['GPTBot', 'ClaudeBot', 'PerplexityBot', 'OAI-SearchBot', 'Google-Extended']
 
+// Sitemap eksiklik kontrolü için minimum taranan sayfa eşiği — çok küçük siteleri nazlamamak için
+const SITEMAP_MIN_PAGES = 10
+
+/**
+ * Sitemap'in eksik olup olmadığını belirler — hem panel notu hem de issue üretimi için TEK kaynak.
+ * Yalnızca sitemap, taranan sayfa sayısından AZ URL içerdiğinde eksik sayılır.
+ * urlCount 0/null ise (genelde parse edilemeyen sitemap index'i) cezalandırmaz.
+ */
+export function isSitemapIncomplete(urlCount?: number | null, crawledPageCount?: number | null): boolean {
+  if (urlCount == null || urlCount <= 0) return false
+  if (crawledPageCount == null || crawledPageCount < SITEMAP_MIN_PAGES) return false
+  return urlCount < crawledPageCount
+}
+
 function toGrade(score: number): QualityScore['grade'] {
   if (score >= 90) return 'A'
   if (score >= 75) return 'B'
@@ -162,7 +176,7 @@ export function scoreAiBotAccess(
   return { score, grade, label: toLabel(grade, locale), detail, recommendation }
 }
 
-export function scoreSitemap(hasSitemap: boolean, urlCount?: number | null, locale: string = 'tr'): QualityScore {
+export function scoreSitemap(hasSitemap: boolean, urlCount?: number | null, crawledPageCount?: number | null, locale: string = 'tr'): QualityScore {
   if (!hasSitemap) {
     return {
       score: 0, grade: 'F', label: t('quality.sitemap.missing.label', locale), detail: t('quality.sitemap.missing.detail', locale),
@@ -174,6 +188,16 @@ export function scoreSitemap(hasSitemap: boolean, urlCount?: number | null, loca
     return {
       score: 60, grade: 'C', label: t('quality.sitemap.present.label', locale), detail: t('quality.sitemap.present.detail', locale),
       recommendation: t('quality.sitemap.present.recommendation', locale),
+    }
+  }
+
+  // Eksik sitemap — issue üretimi ile AYNI mantık (tek kaynak): not, oran ile sınırlandırılır.
+  if (isSitemapIncomplete(urlCount, crawledPageCount)) {
+    const score = Math.min(70, Math.max(30, Math.round((urlCount / crawledPageCount!) * 100)))
+    const grade = toGrade(score)
+    return {
+      score, grade, label: toLabel(grade, locale), detail: t('quality.sitemap.incomplete.detail', locale, { count: urlCount, pages: crawledPageCount! }),
+      recommendation: t('quality.sitemap.incomplete.recommendation', locale, { count: urlCount, pages: crawledPageCount! }),
     }
   }
 
@@ -213,13 +237,14 @@ export function computeTechnicalScores(snapshot: {
     allowedBots?: string[]
     sitemapUrlCount?: number | null
   } | null
+  crawledPageCount?: number
 }, locale: string = 'tr') {
   const td = snapshot.technicalDetails ?? {}
   return {
     llmsTxt: scoreLlmsTxt(snapshot.llmsTxtContent, snapshot.hasLlmsTxt, locale),
     robotsTxt: scoreRobotsTxt(snapshot.hasRobotsTxt, snapshot.robotsBlocksAI, td.robotsContent, locale),
     aiBotAccess: scoreAiBotAccess(snapshot.robotsBlocksAI, snapshot.hasRobotsTxt, td.allowedBots, locale),
-    sitemap: scoreSitemap(snapshot.hasSitemap, td.sitemapUrlCount, locale),
+    sitemap: scoreSitemap(snapshot.hasSitemap, td.sitemapUrlCount, snapshot.crawledPageCount, locale),
     https: scoreHttps(snapshot.httpsEnabled, locale),
   }
 }

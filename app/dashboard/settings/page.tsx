@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import NameEditForm from '@/components/dashboard/NameEditForm'
 import PasswordChangeForm from '@/components/dashboard/PasswordChangeForm'
 import DeleteAccountButton from '@/components/dashboard/DeleteAccountButton'
+import EmailPreferencesForm from '@/components/dashboard/EmailPreferencesForm'
 import type { Plan } from '@prisma/client'
 
 function planLabel(plan: Plan): string {
@@ -30,7 +31,7 @@ export default async function SettingsPage() {
 
   const dbUser = await db.user.findUnique({
     where: { id: user.id },
-    select: { password: true },
+    select: { password: true, emailReports: true, emailAlerts: true },
   })
 
   // A credentials user has a bcrypt password; Google OAuth users have password: null
@@ -88,6 +89,15 @@ export default async function SettingsPage() {
             Google ile giriş yapıyorsunuz — şifre değişikliği uygulanamaz.
           </p>
         )}
+      </section>
+
+      {/* E-posta Bildirimleri */}
+      <section className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
+        <h2 className="text-base font-semibold text-gray-900 mb-4">E-posta Bildirimleri</h2>
+        <EmailPreferencesForm
+          initialEmailReports={dbUser?.emailReports ?? true}
+          initialEmailAlerts={dbUser?.emailAlerts ?? true}
+        />
       </section>
 
       {/* Tehlikeli Alan */}

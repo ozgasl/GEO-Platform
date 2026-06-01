@@ -1,5 +1,6 @@
 import type { IssueInput, SnapshotData, PageSnapshot } from '@/lib/types'
 import { t } from '@/lib/i18n'
+import { scoreAiBotAccess, isSitemapIncomplete } from './quality'
 
 // ----- Yardımcı -----
 
@@ -31,23 +32,43 @@ export function checkRobotsTxt(snapshot: SnapshotData, locale: string = 'tr'): I
     })
   }
 
-  if (!snapshot.robotsBlocksAI) return null
+  // robots.txt var ve AI botları engelliyor → CRITICAL
+  if (snapshot.robotsBlocksAI) {
+    return issue(snapshot.id, {
+      severity: 'CRITICAL',
+      category: 'ROBOTS',
+      title: t('issue.robots.blocked.title', locale),
+      description: t('issue.robots.blocked.description', locale),
+      impact: t('issue.robots.blocked.impact', locale),
+      actionType: 'AUTO_FIX',
+      actionPayload: {
+        fixType: 'robots_allow_ai_bots',
+        instruction: t('issue.robots.blocked.instruction', locale),
+      },
+    })
+  }
 
-  // Hangi botlar engellenmiş?
-  // Bu bilgi crawlSite() tarafından snapshot action payload'a yerleştirilebilir;
-  // burada robotsBlocksAI=true ise genel CRITICAL issue üretiyoruz.
-  return issue(snapshot.id, {
-    severity: 'CRITICAL',
-    category: 'ROBOTS',
-    title: t('issue.robots.blocked.title', locale),
-    description: t('issue.robots.blocked.description', locale),
-    impact: t('issue.robots.blocked.impact', locale),
-    actionType: 'AUTO_FIX',
-    actionPayload: {
-      fixType: 'robots_allow_ai_bots',
-      instruction: t('issue.robots.blocked.instruction', locale),
-    },
-  })
+  // robots.txt var, engellemiyor ama YZ botlarına açık (explicit) izin zayıf → MEDIUM iyileştirme.
+  // Tek kaynak: panelin kullandığı scoreAiBotAccess ile aynı hesap. Veri yoksa (legacy snapshot) cezalandırma.
+  if (snapshot.technicalDetails != null) {
+    const aiBotScore = scoreAiBotAccess(snapshot.robotsBlocksAI, snapshot.hasRobotsTxt, snapshot.technicalDetails.allowedBots, locale)
+    if (aiBotScore.score < 75) {
+      return issue(snapshot.id, {
+        severity: 'MEDIUM',
+        category: 'ROBOTS',
+        title: t('issue.robots.weak.title', locale),
+        description: t('issue.robots.weak.description', locale),
+        impact: t('issue.robots.weak.impact', locale),
+        actionType: 'AUTO_FIX',
+        actionPayload: {
+          fixType: 'robots_allow_ai_bots',
+          instruction: t('issue.robots.weak.instruction', locale),
+        },
+      })
+    }
+  }
+
+  return null
 }
 
 /**
@@ -140,11 +161,19 @@ export function checkHttps(snapshot: SnapshotData, locale: string = 'tr'): Issue
   }
 
   // İç linklerde HTTP var mı? (mixed content)
+  // Not: schema JSON'da 'http://' geçen sayfaları tespit eder.
+  // Henüz site URL'i SnapshotData'ya eklenmediğinden host karşılaştırması atlandı;
+  // güvenli temel kontrol: http:// içeren şema → mixed content adayı.
   const mixedContentPages = snapshot.pages.filter(page => {
-    const allLinks = [...page.h2Array, ...page.h3Array]
-    // jsonLdSchemas içinde http:// URL kontrolü
-    const schemaContent = JSON.stringify(page.jsonLdSchemas)
-    return schemaContent.includes('http://') && schemaContent.includes(new URL(snapshot.siteId).host ?? '')
+    try {
+      const schemaContent = JSON.stringify(page.jsonLdSchemas)
+      if (!schemaContent.includes('http://')) return false
+      console.log(`[checkHttps] http:// şema içeriği tespit edildi: ${page.url}`)
+      return true
+    } catch (e) {
+      console.warn(`[checkHttps] Sayfa filtresi hatası (${page.url}):`, e)
+      return false
+    }
   })
 
   if (mixedContentPages.length > 0) {
@@ -181,6 +210,27 @@ export function checkSitemap(snapshot: SnapshotData, locale: string = 'tr'): Iss
       },
     })
   }
+
+  // Sitemap var ama taranan sayfalardan az URL içeriyor → eksik (MEDIUM).
+  // Tek kaynak: panelin scoreSitemap'i ile aynı isSitemapIncomplete kontrolü.
+  const urlCount = snapshot.technicalDetails?.sitemapUrlCount
+  const crawledPageCount = snapshot.pages.length
+  if (isSitemapIncomplete(urlCount, crawledPageCount)) {
+    return issue(snapshot.id, {
+      severity: 'MEDIUM',
+      category: 'TECHNICAL',
+      title: t('issue.sitemap.incomplete.title', locale),
+      description: t('issue.sitemap.incomplete.description', locale, { count: urlCount!, pages: crawledPageCount }),
+      impact: t('issue.sitemap.incomplete.impact', locale),
+      actionType: 'CONTENT_SUGGESTION',
+      actionPayload: {
+        recommendation: t('issue.sitemap.incomplete.recommendation', locale, { count: urlCount!, pages: crawledPageCount }),
+        currentUrlCount: urlCount,
+        crawledPageCount,
+      },
+    })
+  }
+
   return null
 }
 

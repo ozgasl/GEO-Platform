@@ -25,6 +25,7 @@ import { revertAction } from '../lib/actions/revert'
 import { encryptSiteId, decryptToken, generateSnippet } from '../lib/monitoring/snippet'
 import { detectBot, recordVisit } from '../lib/monitoring/tracker'
 import { calculateGeoScore } from '../lib/reports/score'
+import { isSitemapIncomplete } from '../lib/analyzer/quality'
 import { generateReport } from '../lib/reports/generator'
 import { functions } from '../lib/inngest/functions'
 import type { SnapshotData, PageSnapshot, IssueInput } from '../lib/types'
@@ -83,6 +84,12 @@ function makeSnapshot(overrides: Partial<SnapshotData> = {}): SnapshotData {
     httpsEnabled: true,
     pages: [makePage()],
     previousSnapshotId: null,
+    technicalDetails: {
+      robotsContent: 'User-agent: *\nAllow: /\nSitemap: https://example.com/sitemap.xml',
+      allowedBots: ['GPTBot', 'ClaudeBot', 'PerplexityBot', 'OAI-SearchBot'],
+      blockedBots: [],
+      sitemapUrlCount: 50,
+    },
     ...overrides,
   }
 }
@@ -132,12 +139,31 @@ async function main() {
   const r1 = checkRobotsTxt(makeSnapshot({ robotsBlocksAI: false, hasRobotsTxt: true }))
   assert(r1 === null, 'AI botu engellenmediyse sorun çıkmaz')
 
-  const r2 = checkRobotsTxt(makeSnapshot({ hasRobotsTxt: false, robotsBlocksAI: false }))
+  // Mutual exclusivity: robots YOKSA yalnızca "absent" (LOW, CONTENT_SUGGESTION) üretilir — zayıf issue'a düşmez
+  const r2 = checkRobotsTxt(makeSnapshot({ hasRobotsTxt: false, robotsBlocksAI: false, technicalDetails: { allowedBots: [] } }))
   assert(r2 !== null && r2.severity === 'LOW', 'robots.txt yoksa LOW issue üretilir')
+  assert(r2?.actionType === 'CONTENT_SUGGESTION', 'robots.txt yoksa üretilen issue absent (CONTENT_SUGGESTION) tipidir, zayıf değil')
 
   const r3 = checkRobotsTxt(makeSnapshot({ robotsBlocksAI: true }))
   assert(r3 !== null && r3.severity === 'CRITICAL', 'AI botu engellenince CRITICAL issue')
   assert(r3?.actionType === 'AUTO_FIX', 'Robots bloğu AUTO_FIX aksiyonu içermeli')
+
+  // robots var, engellemiyor ama YZ botlarına açık izin yok → MEDIUM iyileştirme
+  const r4 = checkRobotsTxt(makeSnapshot({
+    hasRobotsTxt: true, robotsBlocksAI: false,
+    technicalDetails: { robotsContent: 'User-agent: *\nAllow: /', allowedBots: [], sitemapUrlCount: 50 },
+  }))
+  assert(r4 !== null && r4.severity === 'MEDIUM', 'Açık izin yoksa MEDIUM iyileştirme issue üretilir')
+  assert(r4?.actionType === 'AUTO_FIX' && (r4.actionPayload as { fixType?: string })?.fixType === 'robots_allow_ai_bots',
+    'Zayıf robots issue mevcut robots_allow_ai_bots fix tipini kullanır')
+
+  // robots var, engellemiyor, açık izinler tam → issue yok (r1 + bu, strong path)
+  const r5 = checkRobotsTxt(makeSnapshot({ hasRobotsTxt: true, robotsBlocksAI: false }))
+  assert(r5 === null, 'YZ botlarına açık izinler tamsa issue üretilmez')
+
+  // technicalDetails yoksa (legacy snapshot) bilinmeyen veriden ceza kesilmez
+  const r6 = checkRobotsTxt(makeSnapshot({ hasRobotsTxt: true, robotsBlocksAI: false, technicalDetails: null }))
+  assert(r6 === null, 'technicalDetails null ise zayıf-robots issue üretilmez')
 
   // BÖLÜM 3: checkLlmsTxt
   console.log('\n' + bold('3. Rule Engine — checkLlmsTxt'))
@@ -183,7 +209,40 @@ async function main() {
   assert(s1?.severity === 'HIGH', 'Sitemap yoksa HIGH issue')
 
   const s2 = checkSitemap(makeSnapshot({ hasSitemap: true }))
-  assert(s2 === null, 'Sitemap varsa sorun yok')
+  assert(s2 === null, 'Sitemap varsa (ve tamsa) sorun yok')
+
+  // isSitemapIncomplete — tek kaynak yardımcı fonksiyonun birim testleri
+  assert(isSitemapIncomplete(5, 47) === true, 'isSitemapIncomplete: 5 URL / 47 sayfa → eksik')
+  assert(isSitemapIncomplete(50, 47) === false, 'isSitemapIncomplete: 50 URL / 47 sayfa → tam')
+  assert(isSitemapIncomplete(5, 8) === false, 'isSitemapIncomplete: küçük site (8 sayfa) → eşik altı, eksik değil')
+  assert(isSitemapIncomplete(0, 47) === false, 'isSitemapIncomplete: 0 URL (parse edilemeyen index) → ceza yok')
+  assert(isSitemapIncomplete(null, 47) === false, 'isSitemapIncomplete: null URL → ceza yok')
+
+  const manyPages = Array.from({ length: 12 }, (_, i) =>
+    makePage({ url: `https://example.com/p${i}`, contentHash: `h${i}` }))
+
+  // Sitemap var ama taranan sayfalardan az URL içeriyor → MEDIUM eksik issue
+  const s3 = checkSitemap(makeSnapshot({
+    hasSitemap: true, pages: manyPages,
+    technicalDetails: { sitemapUrlCount: 5, allowedBots: [] },
+  }))
+  assert(s3 !== null && s3.severity === 'MEDIUM', 'Eksik sitemap (5 URL / 12 sayfa) → MEDIUM issue')
+  assert(s3?.category === 'TECHNICAL' && s3.actionType === 'CONTENT_SUGGESTION',
+    'Eksik sitemap issue TECHNICAL + CONTENT_SUGGESTION')
+
+  // Sitemap taranan sayfalardan çok URL içeriyor → issue yok
+  const s4 = checkSitemap(makeSnapshot({
+    hasSitemap: true, pages: manyPages,
+    technicalDetails: { sitemapUrlCount: 20, allowedBots: [] },
+  }))
+  assert(s4 === null, 'Sitemap taranan sayfa kadar/fazla URL içeriyorsa issue yok')
+
+  // Çok küçük site (eşik altı) → eksik sayılmaz
+  const s5 = checkSitemap(makeSnapshot({
+    hasSitemap: true, pages: [makePage(), makePage({ url: 'https://example.com/x' })],
+    technicalDetails: { sitemapUrlCount: 1, allowedBots: [] },
+  }))
+  assert(s5 === null, 'Küçük sitede (eşik altı) eksik sitemap issue üretilmez')
 
   const h1 = checkHttps(makeSnapshot({ httpsEnabled: false }))
   assert(h1?.severity === 'HIGH', 'HTTPS yoksa HIGH issue')
