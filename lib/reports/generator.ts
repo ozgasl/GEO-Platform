@@ -105,6 +105,15 @@ export async function generateReport(siteId: string, triggerType: 'MANUAL' | 'WE
     },
   })
 
+  // Mark trial as consumed for STARTER users (first report)
+  const site = await db.site.findUnique({ where: { id: siteId }, select: { userId: true } })
+  if (site?.userId) {
+    const siteUser = await db.user.findUnique({ where: { id: site.userId }, select: { plan: true, freeReportUsed: true } })
+    if (siteUser && !siteUser.freeReportUsed) {
+      await db.user.update({ where: { id: site.userId }, data: { freeReportUsed: true } })
+    }
+  }
+
   return {
     reportId: report.id,
     siteId,
