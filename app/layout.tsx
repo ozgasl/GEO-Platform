@@ -10,6 +10,11 @@ export const metadata: Metadata = {
     siteName: 'Obsey',
     title: 'Obsey',
   },
+  verification: {
+    other: {
+      'msvalidate.01': '0B839AB6893E8A5C8F0687B2867F22C1',
+    },
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
