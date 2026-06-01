@@ -197,7 +197,7 @@ export function ActionPlanPdf(props: ActionPlanPdfProps) {
             issues.map((issue, i) => {
               const sevColor = SEVERITY_COLORS[issue.severity] ?? SEVERITY_COLORS.LOW
               return (
-                <View key={i} style={styles.issueCard}>
+                <View key={i} style={styles.issueCard} wrap={false}>
                   <View style={[styles.issueHeader, { backgroundColor: sevColor.bg }]}>
                     <Text style={[styles.issueBadge, { backgroundColor: sevColor.bg, color: sevColor.text }]}>
                       {SEVERITY_TR[issue.severity] ?? issue.severity}
@@ -258,7 +258,7 @@ const SEVERITY_ORDER = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
 export function ReportPdf(props: ReportPdfProps) {
   const { siteName, siteUrl, period, triggerType, generatedAt, summary, techScores, llmsTxtContent, stats, prevStats, findings } = props
 
-  const triggerLabel = triggerType === 'WEEKLY' ? 'Haftal&#305;k' : 'Manuel'
+  const triggerLabel = triggerType === 'WEEKLY' ? 'Haftalık' : 'Manuel'
 
   const grouped = SEVERITY_ORDER.reduce<Record<string, typeof findings>>((acc, sev) => {
     acc[sev] = findings.filter(f => f.severity === sev)
@@ -318,10 +318,10 @@ export function ReportPdf(props: ReportPdfProps) {
           <View style={styles.statsTable}>
             {[
               ['Bulunan Sorun', String(stats.issuesFound)],
-              ['&#199;&#246;z&#252;len Sorun', String(stats.issuesFixed)],
+              ['Çözülen Sorun', String(stats.issuesFixed)],
               ['Bekleyen Sorun', String(stats.issuesPending)],
               ['AI Ziyaret', String(stats.aiVisits)],
-              ['llms.txt G&#252;ncellendi', stats.llmsTxtUpdated ? 'Evet' : 'Hay&#305;r'],
+              ['llms.txt Güncellendi', stats.llmsTxtUpdated ? 'Evet' : 'Hayır'],
             ].map(([label, value], i) => (
               <View key={i} style={styles.statsRow}>
                 <Text style={styles.statsLabel}>{label}</Text>
@@ -337,14 +337,14 @@ export function ReportPdf(props: ReportPdfProps) {
             <Text style={styles.sectionTitle}>D&#246;nem Kar&#351;&#305;la&#351;t&#305;rmas&#305;</Text>
             <View style={styles.statsTable}>
               <View style={styles.compRow}>
-                <Text style={[styles.compLabel, { fontFamily: 'NotoSans', fontWeight: 'bold' as const, color: '#374151' }]}>M&#233;trik</Text>
-                <Text style={[styles.compPrev, { fontFamily: 'NotoSans', fontWeight: 'bold' as const, color: '#374151' }]}>&#214;nceki</Text>
+                <Text style={[styles.compLabel, { fontFamily: 'NotoSans', fontWeight: 'bold' as const, color: '#374151' }]}>Metrik</Text>
+                <Text style={[styles.compPrev, { fontFamily: 'NotoSans', fontWeight: 'bold' as const, color: '#374151' }]}>Önceki</Text>
                 <Text style={[styles.compCurr, { color: '#374151' }]}>Mevcut</Text>
-                <Text style={[styles.compChange, { fontFamily: 'NotoSans', fontWeight: 'bold' as const, color: '#374151' }]}>De&#287;i&#351;im</Text>
+                <Text style={[styles.compChange, { fontFamily: 'NotoSans', fontWeight: 'bold' as const, color: '#374151' }]}>Değişim</Text>
               </View>
               {[
                 ['Bulunan Sorun', prevStats.issuesFound, stats.issuesFound],
-                ['&#199;&#246;z&#252;len Sorun', prevStats.issuesFixed, stats.issuesFixed],
+                ['Çözülen Sorun', prevStats.issuesFixed, stats.issuesFixed],
               ].map(([label, prev, curr], i) => {
                 const delta = (curr as number) - (prev as number)
                 return (
@@ -378,7 +378,7 @@ export function ReportPdf(props: ReportPdfProps) {
                   {group.map((finding, i) => {
                     const stColor = STATUS_COLORS[finding.status] ?? STATUS_COLORS.PENDING
                     return (
-                      <View key={i} style={styles.findingRow}>
+                      <View key={i} style={styles.findingRow} wrap={false}>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.findingTitle}>{finding.title}</Text>
                           <Text style={styles.findingDesc}>{finding.description}</Text>
