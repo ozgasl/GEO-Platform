@@ -16,6 +16,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email) return null
+        // TODO(security): [CRITICAL] Bu provider parola DOĞRULAMASI YAPMAZ — yalnızca
+        // e-posta ile herhangi bir kullanıcı hesabına giriş yapılabilir (auth bypass).
+        // Tüm route ownership guard'ları bu nedenle aşılabilir. Düzeltme: User modeline
+        // hashlenmiş `password` alanı ekle (schema migration) + bcrypt.compare ile doğrula.
         // MVP: şifre doğrulaması sonraki aşamada (bcrypt) — şimdi e-posta ile giriş
         const user = await db.user.findUnique({
           where: { email: credentials.email as string },

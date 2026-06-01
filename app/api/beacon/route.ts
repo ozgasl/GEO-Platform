@@ -18,6 +18,9 @@ export async function GET(request: Request) {
   const token = searchParams.get('t')
 
   if (token) {
+    // TODO(security): [LOW] Public endpoint; rate limit yok. Geçerli bir token'a sahip
+    // saldırgan aiCrawlerVisits sayaçlarını sınırsızca şişirebilir (veri bütünlüğü, DoS değil).
+    // IP+token başına rate limit eklenebilir.
     const ua = request.headers.get('user-agent') ?? ''
     // Fire-and-forget — beacon hızlı dönmeli, DB hatasını yutabiliriz
     recordVisit(token, ua).catch(() => {})

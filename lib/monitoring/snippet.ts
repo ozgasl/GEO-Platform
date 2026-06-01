@@ -4,7 +4,15 @@ const ALGO = 'aes-128-cbc'
 const IV = Buffer.alloc(16, 0) // fixed IV — bu obfuscation, şifreleme değil
 
 function getKey(): Buffer {
-  const raw = process.env.MONITORING_SECRET ?? 'geo-platform-monitoring-key-12345'
+  const raw = process.env.MONITORING_SECRET
+  // Güvenlik: production'da hardcoded fallback secret kullanma — token'lar
+  // forge edilebilir hâle gelir. Yalnızca dev/test'te varsayılana izin ver.
+  if (!raw) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('MONITORING_SECRET environment variable is required in production.')
+    }
+    return Buffer.from('geo-platform-monitoring-key-12345', 'utf-8').subarray(0, 16)
+  }
   return Buffer.from(raw, 'utf-8').subarray(0, 16)
 }
 

@@ -337,6 +337,8 @@ export async function GET(
   if (!report) return NextResponse.json({ error: t('api.error.reportNotFound', locale) }, { status: 404 })
 
   const { searchParams } = new URL(request.url)
+  // TODO(security): [LOW] `type` doğrulanmıyor; 'action-plan' dışındaki tüm değerler
+  // sessizce 'report' gibi davranıyor. Bilinmeyen değer için 400 döndürmek daha temiz olur.
   const type = searchParams.get('type') ?? 'report'
   const dateStr = formatDate(new Date(report.generatedAt))
   const slug = siteSlug(site.url)
