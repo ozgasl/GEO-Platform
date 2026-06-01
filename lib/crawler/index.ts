@@ -109,12 +109,42 @@ function parseAllowedBots(robotsContent: string): string[] {
   return allowed
 }
 
+const SITEMAP_MAX_DEPTH = 2
+const SITEMAP_MAX_FETCHES = 10
+
 /**
- * Sitemap XML'inden <loc> sayısını döndürür.
+ * Sitemap veya sitemap index'inden gerçek sayfa URL sayısını döndürür.
+ * <sitemapindex> tespit edilirse alt sitemapları fetch eder (max 2 seviye, max 10 fetch).
+ * Her seviyede fetchText hatası görmezden gelinir — kısmi sonuç yanlış 0'dan iyidir.
  */
-function parseSitemapUrlCount(content: string | null): number {
+async function parseSitemapUrlCount(content: string | null): Promise<number> {
   if (!content) return 0
-  return (content.match(/<loc>/gi) ?? []).length
+  let fetchBudget = SITEMAP_MAX_FETCHES
+
+  async function countUrls(xml: string, depth: number): Promise<number> {
+    if (!/<sitemapindex/i.test(xml)) {
+      return (xml.match(/<loc>/gi) ?? []).length
+    }
+    if (depth >= SITEMAP_MAX_DEPTH) return 0
+
+    const subUrls = (xml.match(/<loc>([^<]+)<\/loc>/gi) ?? [])
+      .map(m => m.replace(/<\/?loc>/gi, '').trim())
+      .filter(u => u.length > 0)
+      .slice(0, fetchBudget)
+
+    let total = 0
+    for (const subUrl of subUrls) {
+      if (fetchBudget <= 0) break
+      fetchBudget--
+      try {
+        const { content: sub } = await fetchText(subUrl)
+        if (sub) total += await countUrls(sub, depth + 1)
+      } catch { /* alt sitemap alınamadı — sayabildiğimizi say */ }
+    }
+    return total
+  }
+
+  return countUrls(content, 0)
 }
 
 async function checkUrlExists(url: string): Promise<boolean> {
@@ -131,7 +161,7 @@ async function checkUrlExists(url: string): Promise<boolean> {
 }
 
 function detectBlockedBots(robotsContent: string): string[] {
-  const lines = robotsContent.split('\n').map(l => l.trim())
+  const lines = robotsContent.split(/\r?\n/).map(l => l.trim())
   const blocked: string[] = []
 
   let currentAgents: string[] = []
@@ -222,7 +252,13 @@ async function parseSitemapUrls(sitemapContent: string): Promise<string[]> {
  * Maksimum 50 URL döndürür.
  */
 export async function discoverUrls(baseUrl: string): Promise<string[]> {
-  const base = new URL(baseUrl)
+  let base: URL
+  try {
+    base = new URL(baseUrl)
+  } catch {
+    console.error(`[discoverUrls] Geçersiz site URL'i: ${baseUrl}`)
+    return []
+  }
   const discovered = new Set<string>()
 
   // 1. Sitemap dene
@@ -528,7 +564,7 @@ export async function crawlSite(siteId: string): Promise<CrawlResult> {
   const blockedBots = robotsResult.content ? detectBlockedBots(robotsResult.content) : []
   const allowedBots = robotsResult.content ? parseAllowedBots(robotsResult.content) : []
   const robotsBlocksAI = blockedBots.length > 0
-  const sitemapUrlCount = parseSitemapUrlCount(sitemapResult.content)
+  const sitemapUrlCount = await parseSitemapUrlCount(sitemapResult.content)
 
   // Sayfa taraması — max 3 eş zamanlı
   const browser = await chromium.launch({ headless: true })

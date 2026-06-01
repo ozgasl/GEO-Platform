@@ -160,32 +160,28 @@ export function checkHttps(snapshot: SnapshotData, locale: string = 'tr'): Issue
     })
   }
 
-  // İç linklerde HTTP var mı? (mixed content)
-  // Not: schema JSON'da 'http://' geçen sayfaları tespit eder.
-  // Henüz site URL'i SnapshotData'ya eklenmediğinden host karşılaştırması atlandı;
-  // güvenli temel kontrol: http:// içeren şema → mixed content adayı.
-  const mixedContentPages = snapshot.pages.filter(page => {
+  // JSON-LD @context HTTP namespace kontrolü.
+  // "http://schema.org" kullanan sayfaları tespit eder — güvenlik sorunu değil, basit bir namespace güncellemesi.
+  const schemaHttpPages = snapshot.pages.filter(page => {
     try {
       const schemaContent = JSON.stringify(page.jsonLdSchemas)
-      if (!schemaContent.includes('http://')) return false
-      console.log(`[checkHttps] http:// şema içeriği tespit edildi: ${page.url}`)
-      return true
-    } catch (e) {
-      console.warn(`[checkHttps] Sayfa filtresi hatası (${page.url}):`, e)
+      return schemaContent.includes('http://schema.org') || schemaContent.includes('http://schema.org/')
+    } catch {
       return false
     }
   })
 
-  if (mixedContentPages.length > 0) {
+  if (schemaHttpPages.length > 0) {
     return issue(snapshot.id, {
-      severity: 'MEDIUM',
+      severity: 'LOW',
       category: 'TECHNICAL',
-      title: t('issue.mixedContent.title', locale),
-      description: t('issue.mixedContent.description', locale),
-      impact: t('issue.mixedContent.impact', locale),
-      actionType: 'MANUAL_REQUIRED',
+      title: t('issue.schemaHttp.title', locale),
+      description: t('issue.schemaHttp.description', locale),
+      impact: t('issue.schemaHttp.impact', locale),
+      actionType: 'CONTENT_SUGGESTION',
       actionPayload: {
-        affectedPages: mixedContentPages.slice(0, 10).map(p => p.url),
+        recommendation: t('issue.schemaHttp.recommendation', locale),
+        affectedPages: schemaHttpPages.slice(0, 10).map(p => p.url),
       },
     })
   }

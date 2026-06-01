@@ -21,6 +21,11 @@
   "issue.llms.newPages.description": "Son taramadan bu yana {count} yeni sayfa bulundu ancak llms.txt güncellenmemiş: {pages}",
   "issue.llms.newPages.impact": "Yeni sayfalar llms.txt içinde listelenmediği sürece AI sistemleri bu sayfaların varlığından haberdar olmayabilir.",
 
+  "issue.schemaHttp.title": "JSON-LD şemalarında eski HTTP namespace kullanılıyor",
+  "issue.schemaHttp.description": "Bazı sayfalarınızdaki JSON-LD şemaları \"@context\": \"http://schema.org\" ifadesini kullanıyor. Bu bir güvenlik sorunu değil; schema.org, HTTP yerine HTTPS namespace'i tercih etmektedir.",
+  "issue.schemaHttp.impact": "Tarayıcılar bu alanı hiç yüklemez — yalnızca bir metadata tanımlayıcısıdır. Bununla birlikte, şemalarınızı https://schema.org olarak güncellemek modern standartlarla uyum sağlar.",
+  "issue.schemaHttp.recommendation": "JSON-LD bloklarındaki \"@context\": \"http://schema.org\" değerlerini \"@context\": \"https://schema.org\" olarak güncelleyin. WordPress kullanıyorsanız bu genellikle temanın veya SEO eklentisinin (Yoast, RankMath) ürettiği bir değerdir — eklenti ayarlarını kontrol edin ya da eklenti güncellemesiyle otomatik düzelir.",
+
   "issue.https.title": "Site HTTPS kullanmıyor",
   "issue.https.description": "Siteniz güvenli HTTPS bağlantısı yerine HTTP kullanıyor. Bu, hem kullanıcılar hem de arama motorları için ciddi bir güven sorunu oluşturur.",
   "issue.https.impact": "HTTPS olmayan siteler tarayıcılarda \"Güvenli Değil\" uyarısı gösterir ve Google sıralamalarında dezavantaj yaşar. AI sistemleri de güvenli olmayan kaynaklara daha az güvenir.",
