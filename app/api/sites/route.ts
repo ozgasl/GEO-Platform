@@ -1,6 +1,8 @@
+import { NextResponse } from 'next/server'
 import { ok, err, unauthorized, getSessionUser } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import { inngest } from '@/lib/inngest/client'
+import { checkRateLimit } from '@/lib/rate-limit'
 import { Plan } from '@prisma/client'
 import { z } from 'zod'
 
@@ -38,6 +40,15 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+  const { allowed, retryAfterMs } = checkRateLimit(`ip:${ip}`, 10, 3_600_000)
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'rate_limit', message: 'Çok fazla istek. Lütfen bir saat sonra tekrar deneyin.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(retryAfterMs / 1000)) } }
+    )
+  }
+
   const user = await getSessionUser()
   if (!user) return unauthorized()
 

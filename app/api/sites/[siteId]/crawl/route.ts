@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { ok, err, unauthorized, notFound, getSessionUser, requireSiteOwner } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import { inngest } from '@/lib/inngest/client'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 const COOLDOWN_MS = 5 * 60 * 1000 // 5 dakika
 
@@ -9,10 +10,19 @@ export async function POST(
   _request: Request,
   { params }: { params: { siteId: string } }
 ) {
+  const { siteId } = params
+  const { allowed, retryAfterMs } = checkRateLimit(`crawl:${siteId}`, 3, 3_600_000)
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'rate_limit', message: 'Çok fazla istek. Lütfen bir saat sonra tekrar deneyin.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(retryAfterMs / 1000)) } }
+    )
+  }
+
   const user = await getSessionUser()
   if (!user) return unauthorized()
 
-  const site = await requireSiteOwner(params.siteId, user.id)
+  const site = await requireSiteOwner(siteId, user.id)
   if (!site) return notFound()
 
   // Trial gate: STARTER users who have used their free report cannot crawl again
@@ -36,7 +46,7 @@ export async function POST(
 
   await inngest.send({
     name: 'geo/site.crawl.requested',
-    data: { siteId: params.siteId, triggeredBy: 'MANUAL' as const },
+    data: { siteId, triggeredBy: 'MANUAL' as const },
   })
 
   return ok({ started: true, message: 'Tarama başlatıldı. 3-5 dakika sürebilir.' }, 202)
