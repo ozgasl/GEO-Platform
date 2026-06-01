@@ -1,16 +1,20 @@
 import { Document, Page, View, Text, StyleSheet, Font } from '@react-pdf/renderer'
 import React from 'react'
-import { NOTO_SANS_REGULAR, NOTO_SANS_BOLD } from './font-data'
 
 const BLUE = '#2563EB'
 
-// Fonts embedded as base64 data URIs — no HTTP requests, no filesystem access needed.
-// Works reliably on Vercel serverless, Railway, and local environments.
+// @fontsource/noto-sans v5.2.10 via jsDelivr CDN.
+// Real WOFF files (verified magic bytes 77 4F 46 46).
+// External CDN — no circular requests, no filesystem uncertainty.
+// latin: covers ü ö ç  |  latin-ext: covers ş ğ ı İ
+const CDN = 'https://cdn.jsdelivr.net/npm/@fontsource/noto-sans@5.2.10/files'
 Font.register({
   family: 'NotoSans',
   fonts: [
-    { src: NOTO_SANS_REGULAR },
-    { src: NOTO_SANS_BOLD, fontWeight: 'bold' },
+    { src: `${CDN}/noto-sans-latin-400-normal.woff` },
+    { src: `${CDN}/noto-sans-latin-700-normal.woff`, fontWeight: 'bold' },
+    { src: `${CDN}/noto-sans-latin-ext-400-normal.woff` },
+    { src: `${CDN}/noto-sans-latin-ext-700-normal.woff`, fontWeight: 'bold' },
   ],
 })
 
