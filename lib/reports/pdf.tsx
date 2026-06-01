@@ -1,13 +1,15 @@
 import { Document, Page, View, Text, StyleSheet, Font } from '@react-pdf/renderer'
 import React from 'react'
+import path from 'path'
 
 const BLUE = '#2563EB'
 
+// Use filesystem path — avoids circular HTTP requests in Vercel serverless
 Font.register({
   family: 'NotoSans',
   fonts: [
-    { src: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/fonts/NotoSans-Regular.ttf` },
-    { src: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/fonts/NotoSans-Bold.ttf`, fontWeight: 'bold' },
+    { src: path.join(process.cwd(), 'public', 'fonts', 'NotoSans-Regular.ttf') },
+    { src: path.join(process.cwd(), 'public', 'fonts', 'NotoSans-Bold.ttf'), fontWeight: 'bold' },
   ],
 })
 
