@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -14,12 +15,12 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const res = await signIn('credentials', { email, redirect: false })
+    const res = await signIn('credentials', { email, password, redirect: false })
     setLoading(false)
     if (res?.ok) {
       router.push('/dashboard')
     } else {
-      setError('Bu e-posta ile kayıtlı hesap bulunamadı.')
+      setError('E-posta veya şifre hatalı.')
     }
   }
 
@@ -69,7 +70,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Email */}
+          {/* Email + Password */}
           <form onSubmit={handleEmailSignIn} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">E-posta</label>
@@ -83,13 +84,25 @@ export default function LoginPage() {
               />
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Şifre</label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
             {error && (
               <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
             )}
 
             <button
               type="submit"
-              disabled={loading || !email}
+              disabled={loading || !email || !password}
               className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Giriş yapılıyor…' : 'Giriş yap'}

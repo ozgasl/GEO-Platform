@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getSessionUser } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import NameEditForm from '@/components/dashboard/NameEditForm'
+import PasswordChangeForm from '@/components/dashboard/PasswordChangeForm'
 import DeleteAccountButton from '@/components/dashboard/DeleteAccountButton'
 import type { Plan } from '@prisma/client'
 
@@ -27,11 +28,13 @@ export default async function SettingsPage() {
   const user = await getSessionUser()
   if (!user) return null
 
-  const credentialsAccount = await db.account.findFirst({
-    where: { userId: user.id, provider: 'credentials' },
+  const dbUser = await db.user.findUnique({
+    where: { id: user.id },
+    select: { password: true },
   })
 
-  const hasCredentials = credentialsAccount !== null
+  // A credentials user has a bcrypt password; Google OAuth users have password: null
+  const hasCredentials = !!dbUser?.password
 
   return (
     <div className="p-8 max-w-2xl">
@@ -79,9 +82,7 @@ export default async function SettingsPage() {
       <section className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
         <h2 className="text-base font-semibold text-gray-900 mb-4">Şifre</h2>
         {hasCredentials ? (
-          <p className="text-sm text-gray-500">
-            Şifre değişikliği özelliği yakında eklenecek.
-          </p>
+          <PasswordChangeForm />
         ) : (
           <p className="text-sm text-gray-500">
             Google ile giriş yapıyorsunuz — şifre değişikliği uygulanamaz.

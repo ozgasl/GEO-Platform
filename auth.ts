@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import Google from 'next-auth/providers/google'
+import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -15,17 +16,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: 'Şifre', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.email) return null
-        // TODO(security): [CRITICAL] Bu provider parola DOĞRULAMASI YAPMAZ — yalnızca
-        // e-posta ile herhangi bir kullanıcı hesabına giriş yapılabilir (auth bypass).
-        // Tüm route ownership guard'ları bu nedenle aşılabilir. Düzeltme: User modeline
-        // hashlenmiş `password` alanı ekle (schema migration) + bcrypt.compare ile doğrula.
-        // MVP: şifre doğrulaması sonraki aşamada (bcrypt) — şimdi e-posta ile giriş
+        if (!credentials?.email || !credentials?.password) return null
         const user = await db.user.findUnique({
           where: { email: credentials.email as string },
-          select: { id: true, email: true, name: true },
+          select: { id: true, email: true, name: true, password: true },
         })
-        return user ?? null
+        // No user, or user signed up via Google OAuth (no password set)
+        if (!user || !user.password) return null
+        const valid = await bcrypt.compare(credentials.password as string, user.password)
+        if (!valid) return null
+        return { id: user.id, email: user.email, name: user.name }
       },
     }),
   ],

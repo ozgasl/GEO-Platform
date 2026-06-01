@@ -38,7 +38,16 @@ export async function GET() {
 
   const userData = await db.user.findUniqueOrThrow({
     where: { id: user.id },
-    include: {
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      emailVerified: true,
+      image: true,
+      plan: true,
+      freeReportUsed: true,
+      createdAt: true,
+      // password deliberately excluded — never expose hash
       sites: {
         include: {
           snapshots: { include: { issues: true } },
