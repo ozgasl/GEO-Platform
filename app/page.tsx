@@ -219,11 +219,14 @@ export default async function HomePage() {
               GEO (Generative Engine Optimization), sitenizin yapay zeka arama motorlarında görünür olması için gerekli
               teknik ve içerik düzenlemelerini kapsar. Bu; <strong>llms.txt dosyası</strong>, AI botlarına izin veren
               <strong> robots.txt</strong>, yapılandırılmış schema markup ve bilgi yoğun içerik gerektirir.
+              Geleneksel SEO'dan farklı olarak GEO, AI sistemlerinin içeriği nasıl anlayıp kaynak olarak seçtiğini
+              doğrudan etkileyen sinyal ve yapıları optimize eder.
             </p>
             <p>
               Obsey, bu süreci otomatize eder. Sitenizi AI bot gözünden tarar, eksiklikleri tespit eder ve
               her sorun için hazır deploy talimatları ile içerik üretir. GEO skoru ve teknik durum raporunuzla
-              hangi adımları atmanız gerektiğini net şekilde görürsünüz.
+              hangi adımları atmanız gerektiğini net şekilde görürsünüz. Raporlar PDF ve Markdown formatında
+              indirilebilir; geliştiricilerinizle veya AI araçlarıyla (Cursor, Lovable) doğrudan paylaşabilirsiniz.
             </p>
           </div>
 
