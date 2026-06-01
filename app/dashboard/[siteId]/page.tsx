@@ -95,6 +95,9 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
   const site = await getSiteData(params.siteId, user.id)
   if (!site) notFound()
 
+  const dbUser = await db.user.findUnique({ where: { id: user.id }, select: { plan: true, freeReportUsed: true } })
+  const trialUsed = dbUser?.freeReportUsed === true && dbUser?.plan !== 'AGENCY_5' && dbUser?.plan !== 'AGENCY_20'
+
   const snapshot = site.snapshots[0]
   const allIssues = snapshot?.issues ?? []
   const issues = allIssues.filter(i => i.status === 'PENDING')
@@ -143,6 +146,17 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
         <span>/</span>
         <span className="text-gray-700 font-medium">{site.name}</span>
       </div>
+
+      {/* Trial-used banner */}
+      {trialUsed && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-2.5 flex items-center gap-2 mb-4">
+          <span>⚡</span>
+          <span>Deneme raporunuzu kullandınız. Sınırsız tarama için planınızı yükseltin.</span>
+          <Link href="/dashboard/upgrade" className="font-semibold underline underline-offset-2 hover:text-amber-900 ml-1">
+            Planları Gör →
+          </Link>
+        </div>
+      )}
 
       {/* Site header */}
       <div className="flex items-center justify-between mb-6">
