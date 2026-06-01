@@ -35,7 +35,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
-            <img src="/brand/obsey-wordmark-dark.svg" alt="Obsey" height="32" style={{ height: '32px' }} />
+            <img src="/brand/obsey-wordmark-light.svg" alt="Obsey" style={{ height: '56px' }} />
           </div>
           <p className="text-sm text-gray-500">AI arama motorlarında görünürlüğünüzü artırın</p>
         </div>

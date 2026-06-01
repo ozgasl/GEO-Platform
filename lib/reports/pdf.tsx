@@ -4,12 +4,17 @@ import path from 'path'
 
 const BLUE = '#2563EB'
 
-// Use filesystem path — avoids circular HTTP requests in Vercel serverless
+// @fontsource/noto-sans: WOFF files from node_modules — reliable in Vercel serverless.
+// Register both latin (covers ü ö ç) and latin-ext (covers ş ğ ı İ) for Turkish support.
+const fontsDir = path.join(process.cwd(), 'node_modules', '@fontsource', 'noto-sans', 'files')
+
 Font.register({
   family: 'NotoSans',
   fonts: [
-    { src: path.join(process.cwd(), 'public', 'fonts', 'NotoSans-Regular.ttf') },
-    { src: path.join(process.cwd(), 'public', 'fonts', 'NotoSans-Bold.ttf'), fontWeight: 'bold' },
+    { src: path.join(fontsDir, 'noto-sans-latin-400-normal.woff') },
+    { src: path.join(fontsDir, 'noto-sans-latin-700-normal.woff'), fontWeight: 'bold' },
+    { src: path.join(fontsDir, 'noto-sans-latin-ext-400-normal.woff') },
+    { src: path.join(fontsDir, 'noto-sans-latin-ext-700-normal.woff'), fontWeight: 'bold' },
   ],
 })
 

@@ -14,13 +14,11 @@ interface Site {
 function ObseyIcon({ collapsed }: { collapsed: boolean }) {
   if (collapsed) {
     return (
-      <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
-        <span className="text-white text-sm font-bold">O</span>
-      </div>
+      <img src="/icon.svg" alt="Obsey" style={{ width: '32px', height: '32px', borderRadius: '8px' }} />
     )
   }
   return (
-    <img src="/brand/obsey-wordmark-dark.svg" alt="Obsey" className="h-6" style={{ height: '24px' }} />
+    <img src="/brand/obsey-wordmark-light.svg" alt="Obsey" style={{ height: '40px' }} />
   )
 }
 

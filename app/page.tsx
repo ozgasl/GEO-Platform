@@ -12,7 +12,7 @@ export default async function HomePage() {
       <nav className="border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/brand/obsey-wordmark-dark.svg" alt="Obsey" height="28" style={{ height: '28px' }} />
+            <img src="/brand/obsey-wordmark-light.svg" alt="Obsey" style={{ height: '48px' }} />
           </div>
           <div className="flex items-center gap-3">
             <Link
