@@ -3,8 +3,13 @@ import Providers from '@/components/providers'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'GEO Platform',
-  description: 'AI arama motorlarında görünürlüğünüzü artırın',
+  title: 'Obsey',
+  description: 'AI arama motorlarında görünürlüğünüzü analiz edin ve iyileştirin.',
+  metadataBase: new URL('https://obsey.io'),
+  openGraph: {
+    siteName: 'Obsey',
+    title: 'Obsey',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

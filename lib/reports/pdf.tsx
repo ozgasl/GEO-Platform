@@ -1,15 +1,23 @@
-import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
+import { Document, Page, View, Text, StyleSheet, Font } from '@react-pdf/renderer'
 import React from 'react'
 
 const BLUE = '#2563EB'
 
+Font.register({
+  family: 'NotoSans',
+  fonts: [
+    { src: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/fonts/NotoSans-Regular.ttf` },
+    { src: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/fonts/NotoSans-Bold.ttf`, fontWeight: 'bold' },
+  ],
+})
+
 const styles = StyleSheet.create({
-  page: { fontFamily: 'Helvetica', fontSize: 10, color: '#111827', padding: 40 },
+  page: { fontFamily: 'NotoSans', fontSize: 10, color: '#111827', padding: 40 },
   header: { backgroundColor: BLUE, padding: '16 24', marginBottom: 20, borderRadius: 4 },
-  headerTitle: { color: 'white', fontSize: 18, fontFamily: 'Helvetica-Bold' },
+  headerTitle: { color: 'white', fontSize: 18, fontFamily: 'NotoSans', fontWeight: 'bold' as const },
   headerSub: { color: '#BFDBFE', fontSize: 10, marginTop: 4 },
   section: { marginBottom: 16 },
-  sectionTitle: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: '#1F2937', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', paddingBottom: 4, marginBottom: 8 },
+  sectionTitle: { fontSize: 12, fontFamily: 'NotoSans', fontWeight: 'bold' as const, color: '#1F2937', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', paddingBottom: 4, marginBottom: 8 },
   infoTable: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 4, marginBottom: 16 },
   infoRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#F3F4F6', padding: '6 10' },
   infoLabel: { width: 140, color: '#6B7280', fontSize: 9 },
@@ -19,12 +27,12 @@ const styles = StyleSheet.create({
   techTable: { marginBottom: 16 },
   techRow: { flexDirection: 'row', padding: '5 8', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   techLabel: { flex: 1, fontSize: 9 },
-  techGrade: { width: 30, fontSize: 9, fontFamily: 'Helvetica-Bold', textAlign: 'center' },
+  techGrade: { width: 30, fontSize: 9, fontFamily: 'NotoSans', fontWeight: 'bold' as const, textAlign: 'center' },
   techScore: { width: 50, fontSize: 9, color: '#6B7280', textAlign: 'right' },
   issueCard: { marginBottom: 10, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 4, overflow: 'hidden' },
   issueHeader: { flexDirection: 'row', alignItems: 'center', padding: '6 10', gap: 8 },
-  issueBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 3, fontSize: 8, fontFamily: 'Helvetica-Bold' },
-  issueTitle: { flex: 1, fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#111827' },
+  issueBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 3, fontSize: 8, fontFamily: 'NotoSans', fontWeight: 'bold' as const },
+  issueTitle: { flex: 1, fontSize: 10, fontFamily: 'NotoSans', fontWeight: 'bold' as const, color: '#111827' },
   issueBody: { padding: '6 10', backgroundColor: '#FAFAFA' },
   issueDesc: { fontSize: 9, color: '#4B5563', marginBottom: 4, lineHeight: 1.4 },
   issueImpact: { fontSize: 9, color: '#78350F', backgroundColor: '#FFFBEB', padding: '4 6', borderRadius: 2, marginBottom: 4, lineHeight: 1.4 },
@@ -34,17 +42,17 @@ const styles = StyleSheet.create({
   statsTable: { marginBottom: 16 },
   statsRow: { flexDirection: 'row', padding: '5 8', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   statsLabel: { flex: 1, fontSize: 9, color: '#6B7280' },
-  statsValue: { fontSize: 9, fontFamily: 'Helvetica-Bold', textAlign: 'right' },
+  statsValue: { fontSize: 9, fontFamily: 'NotoSans', fontWeight: 'bold' as const, textAlign: 'right' },
   techRecommendation: { fontSize: 8, color: '#6B7280', marginLeft: 8, marginBottom: 4, lineHeight: 1.4 },
   findingRow: { flexDirection: 'row', padding: '5 8', borderBottomWidth: 1, borderBottomColor: '#F3F4F6', gap: 6, alignItems: 'flex-start' },
   findingTitle: { flex: 1, fontSize: 9, color: '#111827' },
-  findingStatus: { fontSize: 8, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 2, fontFamily: 'Helvetica-Bold' },
+  findingStatus: { fontSize: 8, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 2, fontFamily: 'NotoSans', fontWeight: 'bold' as const },
   findingDesc: { fontSize: 8, color: '#6B7280', marginTop: 2 },
-  codeBox: { fontSize: 8, color: '#1E3A8A', backgroundColor: '#F8FAFC', padding: '6 8', borderRadius: 2, fontFamily: 'Helvetica', lineHeight: 1.4 },
+  codeBox: { fontSize: 8, color: '#1E3A8A', backgroundColor: '#F8FAFC', padding: '6 8', borderRadius: 2, fontFamily: 'Courier', lineHeight: 1.4 },
   compRow: { flexDirection: 'row', padding: '5 8', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   compLabel: { flex: 2, fontSize: 9, color: '#6B7280' },
   compPrev: { flex: 1, fontSize: 9, textAlign: 'right' },
-  compCurr: { flex: 1, fontSize: 9, fontFamily: 'Helvetica-Bold', textAlign: 'right' },
+  compCurr: { flex: 1, fontSize: 9, fontFamily: 'NotoSans', fontWeight: 'bold' as const, textAlign: 'right' },
   compChange: { flex: 1, fontSize: 9, textAlign: 'right' },
 })
 
@@ -104,7 +112,7 @@ function TechScoresSection({ techScores }: { techScores: ActionPlanPdfProps['tec
 function PageFooter({ generatedAt }: { generatedAt: Date }) {
   return (
     <View style={styles.footer} fixed>
-      <Text style={styles.footerText}>GEO Platform tarafından oluşturulmuştur</Text>
+      <Text style={styles.footerText}>Obsey tarafından oluşturulmuştur</Text>
       <Text style={styles.footerText}>
         {generatedAt.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
         {'  '}
@@ -323,10 +331,10 @@ export function ReportPdf(props: ReportPdfProps) {
             <Text style={styles.sectionTitle}>D&#246;nem Kar&#351;&#305;la&#351;t&#305;rmas&#305;</Text>
             <View style={styles.statsTable}>
               <View style={styles.compRow}>
-                <Text style={[styles.compLabel, { fontFamily: 'Helvetica-Bold', color: '#374151' }]}>M&#233;trik</Text>
-                <Text style={[styles.compPrev, { fontFamily: 'Helvetica-Bold', color: '#374151' }]}>&#214;nceki</Text>
+                <Text style={[styles.compLabel, { fontFamily: 'NotoSans', fontWeight: 'bold' as const, color: '#374151' }]}>M&#233;trik</Text>
+                <Text style={[styles.compPrev, { fontFamily: 'NotoSans', fontWeight: 'bold' as const, color: '#374151' }]}>&#214;nceki</Text>
                 <Text style={[styles.compCurr, { color: '#374151' }]}>Mevcut</Text>
-                <Text style={[styles.compChange, { fontFamily: 'Helvetica-Bold', color: '#374151' }]}>De&#287;i&#351;im</Text>
+                <Text style={[styles.compChange, { fontFamily: 'NotoSans', fontWeight: 'bold' as const, color: '#374151' }]}>De&#287;i&#351;im</Text>
               </View>
               {[
                 ['Bulunan Sorun', prevStats.issuesFound, stats.issuesFound],
@@ -358,7 +366,7 @@ export function ReportPdf(props: ReportPdfProps) {
               const sevColor = SEVERITY_COLORS[sev] ?? SEVERITY_COLORS.LOW
               return (
                 <View key={sev}>
-                  <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', color: sevColor.text, marginBottom: 4, marginTop: 6 }}>
+                  <Text style={{ fontSize: 10, fontFamily: 'NotoSans', fontWeight: 'bold' as const, color: sevColor.text, marginBottom: 4, marginTop: 6 }}>
                     {SEVERITY_TR[sev] ?? sev}
                   </Text>
                   {group.map((finding, i) => {

@@ -35,10 +35,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-              <span className="text-white text-sm font-bold">G</span>
-            </div>
-            <span className="text-xl font-bold text-gray-900">GEO Platform</span>
+            <img src="/brand/obsey-wordmark-dark.svg" alt="Obsey" height="32" style={{ height: '32px' }} />
           </div>
           <p className="text-sm text-gray-500">AI arama motorlarında görünürlüğünüzü artırın</p>
         </div>

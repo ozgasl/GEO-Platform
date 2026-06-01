@@ -1,7 +1,7 @@
-# GEO Platform — Claude Code Memory
+# Obsey — Claude Code Memory
 
 ## Proje Özeti
-GEO (Generative Engine Optimization) SaaS platformu. ChatGPT, Claude, Perplexity gibi AI arama motorlarında site görünürlüğünü analiz eder ve otomatik iyileştirir.
+Obsey — GEO (Generative Engine Optimization) SaaS platformu. ChatGPT, Claude, Perplexity gibi AI arama motorlarında site görünürlüğünü analiz eder ve otomatik iyileştirir.
 
 **Branch:** `main`
 **Repo:** `ozgasl/GEO-Platform`

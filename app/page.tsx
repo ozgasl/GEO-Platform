@@ -12,10 +12,7 @@ export default async function HomePage() {
       <nav className="border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-              <span className="text-white text-sm font-bold">G</span>
-            </div>
-            <span className="text-lg font-bold text-gray-900">GEO Platform</span>
+            <img src="/brand/obsey-wordmark-dark.svg" alt="Obsey" height="28" style={{ height: '28px' }} />
           </div>
           <div className="flex items-center gap-3">
             <Link
@@ -177,7 +174,7 @@ export default async function HomePage() {
 
       {/* Footer */}
       <footer className="border-t border-gray-100 py-8 px-4 text-center">
-        <p className="text-sm text-gray-400">GEO Platform &copy; 2026</p>
+        <p className="text-sm text-gray-400">Obsey &copy; 2026</p>
       </footer>
     </div>
   )

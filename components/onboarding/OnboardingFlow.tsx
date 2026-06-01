@@ -65,7 +65,7 @@ export default function OnboardingFlow() {
         <div className="max-w-lg w-full">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-3">
-              GEO Platform&apos;a Hoş Geldiniz 🎉
+              Obsey&apos;e Hoş Geldiniz 🎉
             </h1>
             <p className="text-gray-500 text-base leading-relaxed">
               AI arama motorlarında sitenizin görünürlüğünü analiz edelim.

@@ -11,11 +11,16 @@ interface Site {
   url: string
 }
 
-function GeoIcon() {
+function ObseyIcon({ collapsed }: { collapsed: boolean }) {
+  if (collapsed) {
+    return (
+      <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
+        <span className="text-white text-sm font-bold">O</span>
+      </div>
+    )
+  }
   return (
-    <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
-      <span className="text-white text-sm font-bold">G</span>
-    </div>
+    <img src="/brand/obsey-wordmark-dark.svg" alt="Obsey" className="h-6" style={{ height: '24px' }} />
   )
 }
 
@@ -82,8 +87,7 @@ export default function Sidebar({ sites }: { sites: Site[] }) {
       <div className="flex flex-col flex-1 px-2 py-4 overflow-hidden">
         {/* Logo */}
         <div className={`flex items-center gap-2 px-2 mb-6 ${collapsed ? 'justify-center' : ''}`}>
-          <GeoIcon />
-          {!collapsed && <span className="font-semibold text-gray-900 whitespace-nowrap">GEO Platform</span>}
+          <ObseyIcon collapsed={collapsed} />
         </div>
 
         {/* Siteler nav */}

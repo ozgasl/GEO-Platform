@@ -1,8 +1,8 @@
-# GEO Platform
+# Obsey
 
 GEO (Generative Engine Optimization) SaaS platform. Analyzes and automatically improves site visibility on AI search engines like ChatGPT, Claude, and Perplexity.
 
-**Version:** v1.0.0 · **Live:** [geo-platform-alpha.vercel.app](https://geo-platform-alpha.vercel.app)
+**Version:** v1.0.0 · **Live:** [obsey.io](https://obsey.io)
 
 ---
 

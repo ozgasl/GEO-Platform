@@ -120,7 +120,7 @@ export async function sendReportEmail(
   locale: string = 'tr'
 ): Promise<{ sent: boolean; id?: string }> {
   const apiKey = process.env.RESEND_API_KEY
-  const fromEmail = process.env.REPORT_FROM_EMAIL ?? 'reports@geo-platform.com'
+  const fromEmail = process.env.REPORT_FROM_EMAIL ?? 'reports@obsey.io'
 
   const html = buildEmailHtml(report, appUrl, locale)
   const subject = t('email.subject', locale, { siteName, score: report.score, grade: report.grade })
