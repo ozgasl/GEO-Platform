@@ -3,18 +3,17 @@ import React from 'react'
 
 const BLUE = '#2563EB'
 
-// @fontsource/noto-sans v5.2.10 via jsDelivr CDN.
-// Real WOFF files (verified magic bytes 77 4F 46 46).
-// External CDN — no circular requests, no filesystem uncertainty.
-// latin: covers ü ö ç  |  latin-ext: covers ş ğ ı İ
-const CDN = 'https://cdn.jsdelivr.net/npm/@fontsource/noto-sans@5.2.10/files'
+// Complete Noto Sans TTFs via @expo-google-fonts (jsDelivr CDN).
+// Each file is the FULL font (~556KB, verified magic 00 01 00 00) with complete
+// Turkish glyph coverage (İ Ğ ğ Ş ş Ç ç Ü ü Ö ö ı). One file per weight —
+// avoids the subset-merge problem: @react-pdf/renderer uses one file per weight
+// and does NOT combine split latin / latin-ext subsets.
+const CDN = 'https://cdn.jsdelivr.net/npm/@expo-google-fonts/noto-sans@0.2.3'
 Font.register({
   family: 'NotoSans',
   fonts: [
-    { src: `${CDN}/noto-sans-latin-400-normal.woff` },
-    { src: `${CDN}/noto-sans-latin-700-normal.woff`, fontWeight: 'bold' },
-    { src: `${CDN}/noto-sans-latin-ext-400-normal.woff` },
-    { src: `${CDN}/noto-sans-latin-ext-700-normal.woff`, fontWeight: 'bold' },
+    { src: `${CDN}/NotoSans_400Regular.ttf` },
+    { src: `${CDN}/NotoSans_700Bold.ttf`, fontWeight: 'bold' },
   ],
 })
 
