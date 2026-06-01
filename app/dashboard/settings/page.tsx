@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getSessionUser } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import NameEditForm from '@/components/dashboard/NameEditForm'
+import DeleteAccountButton from '@/components/dashboard/DeleteAccountButton'
 import type { Plan } from '@prisma/client'
 
 function planLabel(plan: Plan): string {
@@ -75,7 +76,7 @@ export default async function SettingsPage() {
       </section>
 
       {/* Şifre */}
-      <section className="bg-white rounded-xl border border-gray-200 p-6">
+      <section className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
         <h2 className="text-base font-semibold text-gray-900 mb-4">Şifre</h2>
         {hasCredentials ? (
           <p className="text-sm text-gray-500">
@@ -86,6 +87,24 @@ export default async function SettingsPage() {
             Google ile giriş yapıyorsunuz — şifre değişikliği uygulanamaz.
           </p>
         )}
+      </section>
+
+      {/* Tehlikeli Alan */}
+      <section className="bg-white rounded-xl border border-red-200 p-6">
+        <h2 className="text-base font-semibold text-red-700 mb-1">Tehlikeli Alan</h2>
+        <p className="text-sm text-gray-500 mb-5">
+          Bu işlem geri alınamaz. Tüm siteleriniz, raporlarınız ve verileriniz kalıcı olarak silinecektir.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <a
+            href="/api/account"
+            download
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors"
+          >
+            Verilerimi İndir
+          </a>
+          <DeleteAccountButton />
+        </div>
       </section>
     </div>
   )
