@@ -2,7 +2,7 @@
 
 GEO (Generative Engine Optimization) SaaS platform. Analyzes and automatically improves site visibility on AI search engines like ChatGPT, Claude, and Perplexity.
 
-**Version:** v1.0.1 · **Live:** [obsey.io](https://obsey.io)
+**Version:** v1.0.2 · **Live:** [obsey.io](https://obsey.io)
 
 ---
 
@@ -182,6 +182,9 @@ Font: NotoSans (full Turkish glyph support) via `@expo-google-fonts/noto-sans` C
 ---
 
 ## Changelog
+
+### v1.0.2 (2026-06-01)
+- **IssueList cleanup** — removed generic client-side "Deploy Talimatı" template; single "↗ Öneriyi Göster" button now calls Claude API to generate site-specific recommendations; button becomes "✓ Tamamlandı" after content loads
 
 ### v1.0.1 (2026-06-01)
 - **Rebrand** — GEO Platform → Obsey; brand assets in `public/brand/`; favicon (`app/icon.svg`) with two-circle eye mark
