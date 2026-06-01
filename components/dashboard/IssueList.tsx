@@ -32,122 +32,6 @@ const ACTION_TYPE_LABEL: Record<string, string> = {
   MANUAL_REQUIRED: 'Manuel Gerekli',
 }
 
-// ---- Artifact generation ----
-
-interface ArtifactResult {
-  code: string
-  instruction: string
-}
-
-function generateArtifact(issue: Issue): ArtifactResult | null {
-  const payload = (issue.actionPayload ?? {}) as Record<string, unknown>
-
-  if (issue.category === 'LLMS_TXT') {
-    const content =
-      typeof payload.generatedContent === 'string'
-        ? payload.generatedContent
-        : `# Siteniz\n> Sitenizin açıklaması — AI sistemleri için kısa ve net bir özet yazın.\n\n## Sayfalar\n- https://siteniz.com/: Ana sayfa\n- https://siteniz.com/hakkimizda: Hakkımızda\n- https://siteniz.com/iletisim: İletişim`
-    return {
-      code: content,
-      instruction: 'Bu içeriği `llms.txt` dosyası olarak sitenizin kök dizinine (`/llms.txt`) yükleyin.',
-    }
-  }
-
-  if (issue.category === 'ROBOTS') {
-    return {
-      code: `User-agent: GPTBot\nAllow: /\n\nUser-agent: ClaudeBot\nAllow: /\n\nUser-agent: PerplexityBot\nAllow: /\n\nUser-agent: Google-Extended\nAllow: /\n\nUser-agent: OAI-SearchBot\nAllow: /`,
-      instruction: 'Bu satırları `robots.txt` dosyanızın sonuna ekleyin.',
-    }
-  }
-
-  if (issue.category === 'SCHEMA') {
-    const schemaType = typeof payload.schemaType === 'string' ? payload.schemaType : 'Organization'
-    let schemaObj: Record<string, unknown>
-
-    if (schemaType === 'Product') {
-      schemaObj = {
-        '@context': 'https://schema.org',
-        '@type': 'Product',
-        name: 'Ürün Adı',
-        description: 'Ürün açıklaması — AI sistemlerinin anlayabileceği şekilde yazın.',
-      }
-    } else if (schemaType === 'Article') {
-      schemaObj = {
-        '@context': 'https://schema.org',
-        '@type': 'Article',
-        headline: 'Makale Başlığı',
-        description: 'Makale özeti.',
-        author: { '@type': 'Person', name: 'Yazar Adı' },
-      }
-    } else {
-      const url = typeof payload.url === 'string' ? payload.url : 'https://siteniz.com'
-      schemaObj = {
-        '@context': 'https://schema.org',
-        '@type': 'Organization',
-        name: 'Şirket Adınız',
-        url,
-        description: 'Şirketinizin AI sistemlerine yönelik kısa açıklaması.',
-      }
-    }
-
-    const scriptTag = `<script type="application/ld+json">\n${JSON.stringify(schemaObj, null, 2)}\n</script>`
-    return {
-      code: scriptTag,
-      instruction: 'Bu `<script>` etiketini ilgili sayfanın `<head>` bölümüne ekleyin.',
-    }
-  }
-
-  if (issue.category === 'TECHNICAL') {
-    return {
-      code: `# Sitemap Oluşturma
-
-## Next.js
-app/sitemap.ts dosyası oluşturun:
-\`\`\`ts
-import { MetadataRoute } from 'next'
-export default function sitemap(): MetadataRoute.Sitemap {
-  return [
-    { url: 'https://siteniz.com', lastModified: new Date() },
-  ]
-}
-\`\`\`
-
-## WordPress
-Yoast SEO veya Rank Math eklentisini kullanın (otomatik oluşturur).
-
-## Diğer platformlar
-1. sitemap.xml dosyası oluşturun.
-2. robots.txt dosyanıza şu satırı ekleyin:
-   Sitemap: https://siteniz.com/sitemap.xml`,
-      instruction: 'Platformunuza uygun yöntemi seçin ve sitemap\'ınızı oluşturun.',
-    }
-  }
-
-  if (issue.category === 'CONTENT') {
-    const faqItems = Array.isArray(payload.suggestedFaqItems)
-      ? (payload.suggestedFaqItems as Array<{ question?: string; answer?: string }>)
-      : []
-
-    const faqBlock =
-      faqItems.length > 0
-        ? faqItems
-            .map(
-              (item, i) =>
-                `### S${i + 1}: ${item.question ?? 'Soru?'}\n${item.answer ?? 'Cevabı buraya yazın.'}`
-            )
-            .join('\n\n')
-        : `### S1: Bu ürün/hizmet ne işe yarar?\nKısa ve net bir cevap yazın.\n\n### S2: Kimler için uygundur?\nHedef kitlenizi açıklayın.\n\n### S3: Nasıl başlayabilirim?\nAdım adım açıklayın.`
-
-    return {
-      code: `## Sık Sorulan Sorular\n\n${faqBlock}`,
-      instruction:
-        'Bu içerik yapısını ilgili sayfanıza ekleyin. FAQ bölümü, AI motorlarının sayfanızdan doğrudan alıntı yapmasını sağlar.',
-    }
-  }
-
-  return null
-}
-
 interface IssueItemProps {
   issue: Issue
   siteId: string
@@ -158,20 +42,8 @@ function IssueItem({ issue, siteId, siteMode }: IssueItemProps) {
   const router = useRouter()
   const [loading, setLoading] = useState<'apply' | 'preview' | 'complete' | 'dismiss' | null>(null)
   const [preview, setPreview] = useState<{ after?: string; instructions?: string } | null>(null)
+  const [copied, setCopied] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [deployOpen, setDeployOpen] = useState(false)
-  const [artifactCopied, setArtifactCopied] = useState(false)
-
-  const artifact = siteMode === 'ADVISOR' && issue.status === 'PENDING'
-    ? generateArtifact(issue)
-    : null
-
-  async function copyArtifact() {
-    if (!artifact) return
-    await navigator.clipboard.writeText(artifact.code)
-    setArtifactCopied(true)
-    setTimeout(() => setArtifactCopied(false), 2000)
-  }
 
   async function showPreview() {
     setLoading('preview')
@@ -181,7 +53,6 @@ function IssueItem({ issue, siteId, siteMode }: IssueItemProps) {
     setLoading(null)
     if (res.ok) {
       setPreview({ after: data.after, instructions: data.instructions })
-      setDeployOpen(true)
     } else {
       setActionError(data.error ?? 'Önizleme oluşturulamadı. Lütfen tekrar deneyin.')
     }
@@ -220,6 +91,13 @@ function IssueItem({ issue, siteId, siteMode }: IssueItemProps) {
     router.refresh()
   }
 
+  async function copyPreview() {
+    if (!preview?.after) return
+    await navigator.clipboard.writeText(preview.after)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       <div className="p-4">
@@ -243,37 +121,24 @@ function IssueItem({ issue, siteId, siteMode }: IssueItemProps) {
               💡 {issue.impact}
             </p>
 
-            {/* Deploy Talimatı — shows AI-generated content when available, template otherwise */}
-            {(artifact || preview) && issue.status === 'PENDING' && (
-              <div className="mt-2">
-                <button
-                  onClick={() => setDeployOpen(prev => !prev)}
-                  className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
-                >
-                  <span>{deployOpen ? '▾' : '▸'}</span>
-                  <span>📋 Deploy Talimatı</span>
-                  {preview && <span className="ml-1 text-indigo-400 font-normal">(AI ile oluşturuldu)</span>}
-                </button>
-
-                {deployOpen && (
-                  <div className="mt-2 bg-indigo-50 border border-indigo-200 rounded-lg p-3">
-                    <p className="text-xs text-indigo-700 mb-2">
-                      {preview?.instructions ?? artifact?.instruction}
-                    </p>
-                    <pre className="text-xs bg-white rounded p-2 overflow-auto max-h-56 border border-indigo-200 whitespace-pre-wrap font-mono leading-relaxed">
-                      {preview?.after ?? artifact?.code}
+            {/* AI-generated preview — shown after "Öneriyi Göster" is clicked */}
+            {preview && (
+              <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                {preview.instructions && (
+                  <p className="text-xs text-blue-700 mb-2">{preview.instructions}</p>
+                )}
+                {preview.after && (
+                  <>
+                    <pre className="text-xs bg-white rounded p-2 overflow-auto max-h-56 border border-blue-200 whitespace-pre-wrap font-mono leading-relaxed">
+                      {preview.after}
                     </pre>
                     <button
-                      onClick={async () => {
-                        await navigator.clipboard.writeText(preview?.after ?? artifact?.code ?? '')
-                        setArtifactCopied(true)
-                        setTimeout(() => setArtifactCopied(false), 2000)
-                      }}
-                      className="mt-1.5 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                      onClick={copyPreview}
+                      className="mt-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
                     >
-                      {artifactCopied ? '✓ Kopyalandı!' : 'Kopyala'}
+                      {copied ? '✓ Kopyalandı!' : 'Kopyala'}
                     </button>
-                  </div>
+                  </>
                 )}
               </div>
             )}
@@ -317,7 +182,7 @@ function IssueItem({ issue, siteId, siteMode }: IssueItemProps) {
                   disabled={!!loading}
                   className="flex-1 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
                 >
-                  {loading === 'preview' ? '…' : '↗ Göster'}
+                  {loading === 'preview' ? '…' : '↗ Öneriyi Göster'}
                 </button>
               ) : (
                 <button
