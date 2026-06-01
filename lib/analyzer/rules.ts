@@ -1,4 +1,5 @@
 import type { IssueInput, SnapshotData, PageSnapshot } from '@/lib/types'
+import { t } from '@/lib/i18n'
 
 // ----- Yardımcı -----
 
@@ -15,19 +16,17 @@ function issue(
  * robots.txt AI bot engelleme kontrolü.
  * GPTBot, ClaudeBot, PerplexityBot, OAI-SearchBot, Google-Extended için Disallow varsa CRITICAL issue.
  */
-export function checkRobotsTxt(snapshot: SnapshotData): IssueInput | null {
+export function checkRobotsTxt(snapshot: SnapshotData, locale: string = 'tr'): IssueInput | null {
   if (!snapshot.hasRobotsTxt) {
     return issue(snapshot.id, {
       severity: 'LOW',
       category: 'ROBOTS',
-      title: 'robots.txt dosyası bulunamadı',
-      description:
-        'Sitenizde robots.txt dosyası yok. Bu dosya arama motorlarına ve AI tarayıcılarına sitenizin hangi bölümlerini okuyabileceğini söyler.',
-      impact:
-        'robots.txt olmadan AI tarayıcıları sitenizi okuyabilir, ancak varsayılan davranış konusunda belirsizlik kalır.',
+      title: t('issue.robots.missing.title', locale),
+      description: t('issue.robots.missing.description', locale),
+      impact: t('issue.robots.missing.impact', locale),
       actionType: 'CONTENT_SUGGESTION',
       actionPayload: {
-        suggestedContent: 'User-agent: *\nAllow: /\n\nSitemap: https://siteniz.com/sitemap.xml',
+        suggestedContent: t('issue.robots.missing.suggestedContent', locale),
       },
     })
   }
@@ -40,16 +39,13 @@ export function checkRobotsTxt(snapshot: SnapshotData): IssueInput | null {
   return issue(snapshot.id, {
     severity: 'CRITICAL',
     category: 'ROBOTS',
-    title: 'AI arama tarayıcıları engelleniyor',
-    description:
-      'robots.txt dosyanız ChatGPT, Claude veya Perplexity gibi AI arama motorlarının site tarayıcılarını engelliyor. Bu tarayıcılar sitenizi okuyamadığı için AI arama sonuçlarında görünmeniz mümkün değil.',
-    impact:
-      'ChatGPT, Perplexity veya Claude kullanıcıları sektörünüzle ilgili sorular sorduğunda siteniz kaynak olarak gösterilmiyor. Bu, ücretsiz AI arama trafiğini tamamen kaybetmek anlamına geliyor.',
+    title: t('issue.robots.blocked.title', locale),
+    description: t('issue.robots.blocked.description', locale),
+    impact: t('issue.robots.blocked.impact', locale),
     actionType: 'AUTO_FIX',
     actionPayload: {
       fixType: 'robots_allow_ai_bots',
-      instruction:
-        'Mevcut robots.txt içeriğine şu satırları ekle:\n\nUser-agent: GPTBot\nAllow: /\n\nUser-agent: OAI-SearchBot\nAllow: /\n\nUser-agent: ChatGPT-User\nAllow: /\n\nUser-agent: ClaudeBot\nAllow: /\n\nUser-agent: PerplexityBot\nAllow: /\n\nUser-agent: Google-Extended\nAllow: /\n\nUser-agent: meta-externalagent\nAllow: /\n\nUser-agent: YouBot\nAllow: /\n\nUser-agent: DuckAssistBot\nAllow: /\n\nUser-agent: Applebot-Extended\nAllow: /',
+      instruction: t('issue.robots.blocked.instruction', locale),
     },
   })
 }
@@ -60,17 +56,16 @@ export function checkRobotsTxt(snapshot: SnapshotData): IssueInput | null {
  */
 export function checkLlmsTxt(
   snapshot: SnapshotData,
-  previousSnapshot?: SnapshotData
+  previousSnapshot?: SnapshotData,
+  locale: string = 'tr'
 ): IssueInput | null {
   if (!snapshot.hasLlmsTxt) {
     return issue(snapshot.id, {
       severity: 'HIGH',
       category: 'LLMS_TXT',
-      title: 'llms.txt dosyası eksik',
-      description:
-        'Sitenizde llms.txt dosyası yok. Bu dosya, ChatGPT ve Claude gibi AI sistemlerine sitenizin ne hakkında olduğunu ve hangi sayfalarının önemli olduğunu açıklar.',
-      impact:
-        'llms.txt olmadan AI sistemleri sitenizi doğru anlayamaz ve ilgili sorularda sizi kaynak göstermez. Bu dosya, AI görünürlüğü için en kritik adımdır.',
+      title: t('issue.llms.missing.title', locale),
+      description: t('issue.llms.missing.description', locale),
+      impact: t('issue.llms.missing.impact', locale),
       actionType: 'AUTO_FIX',
       actionPayload: { fixType: 'generate_llms_txt' },
     })
@@ -82,11 +77,9 @@ export function checkLlmsTxt(
     return issue(snapshot.id, {
       severity: 'MEDIUM',
       category: 'LLMS_TXT',
-      title: 'llms.txt dosyası boş',
-      description:
-        'llms.txt dosyanız mevcut ama içeriği boş. Boş bir dosya AI sistemlerine hiçbir bilgi vermez.',
-      impact:
-        'AI sistemleri boş dosyaları yok sayar. İçerik eklenmediği sürece bu dosyanın hiçbir faydası olmaz.',
+      title: t('issue.llms.empty.title', locale),
+      description: t('issue.llms.empty.description', locale),
+      impact: t('issue.llms.empty.impact', locale),
       actionType: 'AUTO_FIX',
       actionPayload: { fixType: 'generate_llms_txt' },
     })
@@ -101,11 +94,9 @@ export function checkLlmsTxt(
     return issue(snapshot.id, {
       severity: 'MEDIUM',
       category: 'LLMS_TXT',
-      title: 'llms.txt formatı eksik bölümler içeriyor',
-      description:
-        'llms.txt dosyanız standart formatı tam olarak karşılamıyor. AI sistemleri bu dosyayı daha iyi anlayabilmek için # başlık, > açıklama ve ## Sayfalar bölümlerine ihtiyaç duyar.',
-      impact:
-        'Eksik format, AI sistemlerinin sitenizi yanlış yorumlamasına ya da dosyayı göz ardı etmesine yol açabilir.',
+      title: t('issue.llms.format.title', locale),
+      description: t('issue.llms.format.description', locale),
+      impact: t('issue.llms.format.impact', locale),
       actionType: 'AUTO_FIX',
       actionPayload: { fixType: 'regenerate_llms_txt', currentContent: content },
     })
@@ -116,16 +107,13 @@ export function checkLlmsTxt(
     const prevPageUrls = new Set(previousSnapshot.pages.map(p => p.url))
     const newPages = snapshot.pages.filter(p => !prevPageUrls.has(p.url))
     if (newPages.length > 0) {
+      const pagesList = `${newPages.slice(0, 3).map(p => p.url).join(', ')}${newPages.length > 3 ? ' ...' : ''}`
       return issue(snapshot.id, {
         severity: 'LOW',
         category: 'LLMS_TXT',
-        title: `${newPages.length} yeni sayfa llms.txt'e eklenmemiş`,
-        description: `Son taramadan bu yana ${newPages.length} yeni sayfa bulundu ancak llms.txt güncellenmemiş: ${newPages
-          .slice(0, 3)
-          .map(p => p.url)
-          .join(', ')}${newPages.length > 3 ? ' ...' : ''}`,
-        impact:
-          'Yeni sayfalar llms.txt içinde listelenmediği sürece AI sistemleri bu sayfaların varlığından haberdar olmayabilir.',
+        title: t('issue.llms.newPages.title', locale, { count: newPages.length }),
+        description: t('issue.llms.newPages.description', locale, { count: newPages.length, pages: pagesList }),
+        impact: t('issue.llms.newPages.impact', locale),
         actionType: 'AUTO_FIX',
         actionPayload: { fixType: 'update_llms_txt', newPageUrls: newPages.map(p => p.url) },
       })
@@ -138,18 +126,16 @@ export function checkLlmsTxt(
 /**
  * HTTPS ve mixed content kontrolü.
  */
-export function checkHttps(snapshot: SnapshotData): IssueInput | null {
+export function checkHttps(snapshot: SnapshotData, locale: string = 'tr'): IssueInput | null {
   if (!snapshot.httpsEnabled) {
     return issue(snapshot.id, {
       severity: 'HIGH',
       category: 'TECHNICAL',
-      title: 'Site HTTPS kullanmıyor',
-      description:
-        'Siteniz güvenli HTTPS bağlantısı yerine HTTP kullanıyor. Bu, hem kullanıcılar hem de arama motorları için ciddi bir güven sorunu oluşturur.',
-      impact:
-        'HTTPS olmayan siteler tarayıcılarda "Güvenli Değil" uyarısı gösterir ve Google sıralamalarında dezavantaj yaşar. AI sistemleri de güvenli olmayan kaynaklara daha az güvenir.',
+      title: t('issue.https.title', locale),
+      description: t('issue.https.description', locale),
+      impact: t('issue.https.impact', locale),
       actionType: 'MANUAL_REQUIRED',
-      actionPayload: { instruction: 'SSL sertifikası edinin ve tüm HTTP trafiğini HTTPS\'e yönlendirin.' },
+      actionPayload: { instruction: t('issue.https.instruction', locale) },
     })
   }
 
@@ -165,11 +151,9 @@ export function checkHttps(snapshot: SnapshotData): IssueInput | null {
     return issue(snapshot.id, {
       severity: 'MEDIUM',
       category: 'TECHNICAL',
-      title: 'Mixed content sorunu tespit edildi',
-      description:
-        'Bazı sayfalarda HTTPS üzerinden yüklenen içerikle HTTP bağlantıları karışık kullanılıyor.',
-      impact:
-        'Tarayıcılar mixed content içeren sayfaları tam güvenli saymaz. Bu, kullanıcı deneyimini ve güven skorunu olumsuz etkiler.',
+      title: t('issue.mixedContent.title', locale),
+      description: t('issue.mixedContent.description', locale),
+      impact: t('issue.mixedContent.impact', locale),
       actionType: 'MANUAL_REQUIRED',
       actionPayload: {
         affectedPages: mixedContentPages.slice(0, 10).map(p => p.url),
@@ -183,20 +167,17 @@ export function checkHttps(snapshot: SnapshotData): IssueInput | null {
 /**
  * Sitemap varlık kontrolü.
  */
-export function checkSitemap(snapshot: SnapshotData): IssueInput | null {
+export function checkSitemap(snapshot: SnapshotData, locale: string = 'tr'): IssueInput | null {
   if (!snapshot.hasSitemap) {
     return issue(snapshot.id, {
       severity: 'HIGH',
       category: 'TECHNICAL',
-      title: 'Sitemap bulunamadı',
-      description:
-        'Sitenizde sitemap.xml dosyası yok. Sitemap, arama motorlarına ve AI tarayıcılarına site yapınızı anlamanın en kolay yolunu gösterir.',
-      impact:
-        'Sitemap olmadan AI tarayıcıları tüm sayfalarınızı keşfedemez. Özellikle yeni içerikler daha yavaş indexlenir.',
+      title: t('issue.sitemap.title', locale),
+      description: t('issue.sitemap.description', locale),
+      impact: t('issue.sitemap.impact', locale),
       actionType: 'CONTENT_SUGGESTION',
       actionPayload: {
-        instruction:
-          'Site altyapınıza göre (WordPress, Next.js, vb.) otomatik sitemap oluşturun ve robots.txt dosyanıza ekleyin.',
+        instruction: t('issue.sitemap.instruction', locale),
       },
     })
   }
@@ -207,7 +188,7 @@ export function checkSitemap(snapshot: SnapshotData): IssueInput | null {
  * Temel schema markup kontrolü.
  * Homepage'de Organization, ürün sayfalarında Product, blog'da Article schema aranır.
  */
-export function checkBasicSchema(snapshot: SnapshotData): IssueInput[] {
+export function checkBasicSchema(snapshot: SnapshotData, locale: string = 'tr'): IssueInput[] {
   const issues: IssueInput[] = []
 
   const homepage = snapshot.pages.find(p => {
@@ -225,11 +206,9 @@ export function checkBasicSchema(snapshot: SnapshotData): IssueInput[] {
         issue(snapshot.id, {
           severity: 'HIGH',
           category: 'SCHEMA',
-          title: 'Ana sayfada Organization schema eksik',
-          description:
-            'Ana sayfanızda işletme bilgilerinizi (ad, adres, iletişim) tanımlayan bir schema markup yok.',
-          impact:
-            'AI sistemleri, Organization schema olmadan işletmenizin ne olduğunu, nerede bulunduğunu ve nasıl iletişime geçileceğini açıkça göremez. Bu, yerel ve marka aramalarında görünürlüğü azaltır.',
+          title: t('issue.schema.organization.title', locale),
+          description: t('issue.schema.organization.description', locale),
+          impact: t('issue.schema.organization.impact', locale),
           actionType: 'AUTO_FIX',
           actionPayload: { fixType: 'add_schema', schemaType: 'Organization', url: homepage.url },
         })
@@ -269,10 +248,9 @@ export function checkBasicSchema(snapshot: SnapshotData): IssueInput[] {
         issue(snapshot.id, {
           severity: 'HIGH',
           category: 'SCHEMA',
-          title: `Ürün sayfasında Product schema eksik`,
-          description: `"${page.url}" sayfasında ürün bilgilerini (fiyat, stok, açıklama) tanımlayan schema yok.`,
-          impact:
-            'Product schema olmadan AI sistemleri ürün bilgilerinizi yapılandırılmış veri olarak alamaz. Bu, ürün karşılaştırma sorgularında rakiplerinizin gerisinde kalmanıza neden olur.',
+          title: t('issue.schema.product.title', locale),
+          description: t('issue.schema.product.description', locale, { url: page.url }),
+          impact: t('issue.schema.product.impact', locale),
           actionType: 'AUTO_FIX',
           actionPayload: { fixType: 'add_schema', schemaType: 'Product', url: page.url },
         })
@@ -297,10 +275,9 @@ export function checkBasicSchema(snapshot: SnapshotData): IssueInput[] {
         issue(snapshot.id, {
           severity: 'MEDIUM',
           category: 'SCHEMA',
-          title: `Blog yazısında Article schema eksik`,
-          description: `"${page.url}" blog yazısında yazar, tarih ve başlık bilgilerini içeren schema yok.`,
-          impact:
-            'Article schema olmadan AI sistemleri içeriğinizin ne zaman yazıldığını, kim tarafından yazıldığını ve ne kadar güvenilir olduğunu değerlendiremez.',
+          title: t('issue.schema.article.title', locale),
+          description: t('issue.schema.article.description', locale, { url: page.url }),
+          impact: t('issue.schema.article.impact', locale),
           actionType: 'AUTO_FIX',
           actionPayload: { fixType: 'add_schema', schemaType: 'Article', url: page.url },
         })
@@ -324,7 +301,7 @@ function hasSchemaType(page: PageSnapshot, types: string[]): boolean {
  * Sayfaların AI görünürlüğü için yeterli içerik içerip içermediğini kontrol eder.
  * Ortalama kelime sayısı 150'nin altındaysa HIGH, 300'ün altındaysa MEDIUM issue.
  */
-export function checkContentDepth(snapshot: SnapshotData): IssueInput | null {
+export function checkContentDepth(snapshot: SnapshotData, locale: string = 'tr'): IssueInput | null {
   const contentPages = snapshot.pages.filter(p => {
     try {
       const path = new URL(p.url).pathname
@@ -344,16 +321,14 @@ export function checkContentDepth(snapshot: SnapshotData): IssueInput | null {
     return issue(snapshot.id, {
       severity: 'HIGH',
       category: 'CONTENT',
-      title: `Sayfalar çok az içerik içeriyor (ortalama ${avgWordCount} kelime)`,
-      description: `Taranan ${contentPages.length} sayfanın ortalama içerik uzunluğu ${avgWordCount} kelime. AI arama motorları, bir soruya yanıt vermek için en az 200-300 kelimelik, bilgi yoğun içerik arar.`,
-      impact:
-        'Bu kadar kısa içerikli sayfalar AI sistemleri tarafından "kaynak olarak gösterilmeye değmez" olarak değerlendirilir. ChatGPT veya Perplexity, bu sayfalardan doğrudan alıntı yapamaz.',
+      title: t('issue.content.veryLow.title', locale, { avg: avgWordCount }),
+      description: t('issue.content.veryLow.description', locale, { count: contentPages.length, avg: avgWordCount }),
+      impact: t('issue.content.veryLow.impact', locale),
       actionType: 'CONTENT_SUGGESTION',
       actionPayload: {
         avgWordCount,
         pageCount: contentPages.length,
-        recommendation:
-          'Her ürün/hizmet sayfasına: ürün açıklaması, kullanım alanları, uyumluluk bilgisi ve SSS bölümü ekleyerek 300+ kelimeye çıkarın.',
+        recommendation: t('issue.content.veryLow.recommendation', locale),
       },
     })
   }
@@ -362,12 +337,11 @@ export function checkContentDepth(snapshot: SnapshotData): IssueInput | null {
     return issue(snapshot.id, {
       severity: 'MEDIUM',
       category: 'CONTENT',
-      title: `Sayfa içerikleri AI görünürlüğü için yetersiz (ortalama ${avgWordCount} kelime)`,
-      description: `Ortalama sayfa içeriği ${avgWordCount} kelime. Önerilen minimum: 300 kelime.`,
-      impact:
-        'AI sistemleri içerik zenginliğini kaynak kalitesinin göstergesi olarak kullanır. Daha uzun, bilgi yoğun sayfalar daha sık alıntılanır.',
+      title: t('issue.content.low.title', locale, { avg: avgWordCount }),
+      description: t('issue.content.low.description', locale, { avg: avgWordCount }),
+      impact: t('issue.content.low.impact', locale),
       actionType: 'CONTENT_SUGGESTION',
-      actionPayload: { avgWordCount, recommendation: 'Sayfa başına 300+ kelime hedefleyin.' },
+      actionPayload: { avgWordCount, recommendation: t('issue.content.low.recommendation', locale) },
     })
   }
 
@@ -380,17 +354,18 @@ export function checkContentDepth(snapshot: SnapshotData): IssueInput | null {
  */
 export function runAllRules(
   snapshot: SnapshotData,
-  previousSnapshot?: SnapshotData
+  previousSnapshot?: SnapshotData,
+  locale: string = 'tr'
 ): IssueInput[] {
   const results: (IssueInput | null)[] = [
-    checkRobotsTxt(snapshot),
-    checkLlmsTxt(snapshot, previousSnapshot),
-    checkHttps(snapshot),
-    checkSitemap(snapshot),
-    checkContentDepth(snapshot),
+    checkRobotsTxt(snapshot, locale),
+    checkLlmsTxt(snapshot, previousSnapshot, locale),
+    checkHttps(snapshot, locale),
+    checkSitemap(snapshot, locale),
+    checkContentDepth(snapshot, locale),
   ]
 
-  const schemaIssues = checkBasicSchema(snapshot)
+  const schemaIssues = checkBasicSchema(snapshot, locale)
 
   return [
     ...results.filter((r): r is IssueInput => r !== null),

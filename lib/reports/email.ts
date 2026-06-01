@@ -1,4 +1,5 @@
 import type { ReportSummary } from './generator'
+import { t } from '@/lib/i18n'
 
 const GRADE_COLOR: Record<string, string> = {
   A: '#16a34a',
@@ -15,7 +16,7 @@ const SEVERITY_BADGE: Record<string, string> = {
   LOW: '#4b5563',
 }
 
-function buildEmailHtml(report: ReportSummary, appUrl: string): string {
+function buildEmailHtml(report: ReportSummary, appUrl: string, locale: string): string {
   const gradeColor = GRADE_COLOR[report.grade] ?? '#6b7280'
   const issueRows = report.topIssues
     .map(i => `
@@ -42,18 +43,18 @@ function buildEmailHtml(report: ReportSummary, appUrl: string): string {
       <!-- Başlık -->
       <div style="margin-bottom:24px;">
         <span style="font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">
-          GEO Platform — Haftalık Rapor
+          ${t('email.eyebrow', locale)}
         </span>
-        <h1 style="margin:8px 0 4px;font-size:22px;color:#111827;">AI Görünürlük Skoru</h1>
+        <h1 style="margin:8px 0 4px;font-size:22px;color:#111827;">${t('email.heading', locale)}</h1>
         <p style="margin:0;font-size:14px;color:#6b7280;">${new Date(report.crawledAt as string).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' })}</p>
       </div>
 
       <!-- Skor -->
       <div style="text-align:center;background:#f9fafb;border-radius:12px;padding:32px;margin-bottom:24px;">
         <div style="font-size:72px;font-weight:800;color:${gradeColor};line-height:1;">${report.score}</div>
-        <div style="font-size:14px;color:#6b7280;margin-top:4px;">/ 100 puan</div>
+        <div style="font-size:14px;color:#6b7280;margin-top:4px;">${t('email.scoreUnit', locale)}</div>
         <div style="display:inline-block;background:${gradeColor};color:#fff;font-size:18px;font-weight:700;
-          padding:4px 16px;border-radius:20px;margin-top:12px;">Not: ${report.grade}</div>
+          padding:4px 16px;border-radius:20px;margin-top:12px;">${t('email.gradeLabel', locale)}${report.grade}</div>
       </div>
 
       <!-- Özet -->
@@ -64,15 +65,15 @@ function buildEmailHtml(report: ReportSummary, appUrl: string): string {
       <!-- İstatistikler -->
       <table width="100%" style="margin-bottom:24px;">
         <tr>
-          ${buildStatCell('Taranan Sayfa', report.pagesAnalyzed)}
-          ${buildStatCell('Bulunan Sorun', report.issuesFound)}
-          ${buildStatCell('Çözülen Sorun', report.issuesFixed)}
+          ${buildStatCell(t('email.stat.pagesAnalyzed', locale), report.pagesAnalyzed)}
+          ${buildStatCell(t('email.stat.issuesFound', locale), report.issuesFound)}
+          ${buildStatCell(t('email.stat.issuesFixed', locale), report.issuesFixed)}
         </tr>
       </table>
 
       <!-- Top Issues -->
       ${report.topIssues.length > 0 ? `
-      <h2 style="font-size:16px;font-weight:600;color:#111827;margin:0 0 12px;">Öncelikli İyileştirmeler</h2>
+      <h2 style="font-size:16px;font-weight:600;color:#111827;margin:0 0 12px;">${t('email.topIssues.heading', locale)}</h2>
       <table width="100%" style="border-collapse:collapse;margin-bottom:24px;border:1px solid #f3f4f6;border-radius:8px;overflow:hidden;">
         ${issueRows}
       </table>` : ''}
@@ -81,13 +82,13 @@ function buildEmailHtml(report: ReportSummary, appUrl: string): string {
       <div style="text-align:center;margin-top:32px;">
         <a href="${appUrl}/dashboard" style="background:#2563eb;color:#fff;text-decoration:none;
           padding:12px 28px;border-radius:8px;font-size:15px;font-weight:600;display:inline-block;">
-          Tüm Raporu Görüntüle →
+          ${t('email.cta', locale)}
         </a>
       </div>
 
       <!-- Footer -->
       <p style="font-size:12px;color:#9ca3af;text-align:center;margin-top:32px;">
-        Bu e-postayı GEO Platform haftalık rapor aboneliğiniz kapsamında alıyorsunuz.
+        ${t('email.footer', locale)}
       </p>
 
     </td></tr>
@@ -115,13 +116,14 @@ export async function sendReportEmail(
   report: ReportSummary,
   recipientEmail: string,
   siteName: string,
-  appUrl: string
+  appUrl: string,
+  locale: string = 'tr'
 ): Promise<{ sent: boolean; id?: string }> {
   const apiKey = process.env.RESEND_API_KEY
   const fromEmail = process.env.REPORT_FROM_EMAIL ?? 'reports@geo-platform.com'
 
-  const html = buildEmailHtml(report, appUrl)
-  const subject = `${siteName} — GEO Skoru: ${report.score}/100 (${report.grade})`
+  const html = buildEmailHtml(report, appUrl, locale)
+  const subject = t('email.subject', locale, { siteName, score: report.score, grade: report.grade })
 
   if (!apiKey) {
     console.log(`[sendReportEmail] RESEND_API_KEY eksik — e-posta gönderilmedi. Alıcı: ${recipientEmail}, Konu: ${subject}`)

@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { getSessionUser, requireSiteOwner } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import { computeTechnicalScores, type QualityScore } from '@/lib/analyzer/quality'
+import { t } from '@/lib/i18n'
+
+const locale = 'tr'
 
 function formatDate(date: Date): string {
   const mm = String(date.getMonth() + 1).padStart(2, '0')
@@ -25,25 +28,25 @@ function renderPayload(actionType: string, payload: unknown): string {
   const p = payload as Record<string, unknown>
 
   if (p.suggestedContent) {
-    return `**Önerilen İçerik:**\n\`\`\`\n${p.suggestedContent}\n\`\`\``
+    return `${t('report.payload.suggestedContent', locale)}\n\`\`\`\n${p.suggestedContent}\n\`\`\``
   }
   if (p.instruction) {
-    return `**Uygulama Talimatı:**\n${p.instruction}`
+    return `${t('report.payload.instruction', locale)}\n${p.instruction}`
   }
   if (p.fixType === 'generate_llms_txt' || p.fixType === 'regenerate_llms_txt') {
-    return `**Aksiyon:** GEO Platform bu dosyayı site içeriğinizden otomatik oluşturacak. Dashboard'dan "Göster" butonunu kullanın.`
+    return t('report.payload.generateLlms', locale)
   }
   if (p.fixType === 'update_llms_txt' && Array.isArray(p.newPageUrls)) {
-    return `**Eklenecek Sayfalar:**\n${(p.newPageUrls as string[]).map(u => `- ${u}`).join('\n')}`
+    return `${t('report.payload.newPages', locale)}\n${(p.newPageUrls as string[]).map(u => `- ${u}`).join('\n')}`
   }
   if (p.fixType === 'add_schema') {
-    return `**Schema Türü:** ${p.schemaType}\n**Sayfa:** ${p.url}\n\nGEO Platform bu sayfaya ${p.schemaType} JSON-LD kodu ekleyecek. Dashboard'dan "Göster" butonunu kullanın.`
+    return `${t('report.payload.addSchema.type', locale)} ${p.schemaType}\n${t('report.payload.addSchema.page', locale)} ${p.url}\n\n${t('report.payload.addSchema.note', locale, { schemaType: String(p.schemaType) })}`
   }
   if (p.recommendation) {
-    return `**Öneri:** ${p.recommendation}`
+    return `${t('report.payload.recommendation', locale)} ${p.recommendation}`
   }
   if (p.affectedPages && Array.isArray(p.affectedPages)) {
-    return `**Etkilenen Sayfalar:**\n${(p.affectedPages as string[]).map(u => `- ${u}`).join('\n')}`
+    return `${t('report.payload.affectedPages', locale)}\n${(p.affectedPages as string[]).map(u => `- ${u}`).join('\n')}`
   }
 
   return `\`\`\`json\n${JSON.stringify(p, null, 2)}\n\`\`\``
@@ -56,24 +59,24 @@ function buildTechStatusTable(
   pageCount: number
 ): string[] {
   const rows = [
-    { label: 'HTTPS',          s: scores.https },
-    { label: 'llms.txt',       s: scores.llmsTxt },
-    { label: 'robots.txt',     s: scores.robotsTxt },
-    { label: 'AI Botlara İzin', s: scores.aiBotAccess },
-    { label: 'Sitemap',        s: scores.sitemap },
+    { label: t('report.tech.https', locale),       s: scores.https },
+    { label: t('report.tech.llmsTxt', locale),     s: scores.llmsTxt },
+    { label: t('report.tech.robotsTxt', locale),   s: scores.robotsTxt },
+    { label: t('report.tech.aiBotAccess', locale), s: scores.aiBotAccess },
+    { label: t('report.tech.sitemap', locale),     s: scores.sitemap },
   ]
 
   const lines: string[] = [
-    `| Kontrol | Not | Skor |`,
+    `| ${t('report.tech.control', locale)} | ${t('report.tech.grade', locale)} | ${t('report.tech.score', locale)} |`,
     `|---------|-----|------|`,
     ...rows.map(r => `| ${r.label} | ${GRADE_EMOJI[r.s.grade]} ${r.s.grade} | ${r.s.score}/100 |`),
-    `| Taranan Sayfa | — | ${pageCount} |`,
+    `| ${t('report.tech.pagesScanned', locale)} | — | ${pageCount} |`,
     ``,
   ]
 
   const withRecs = rows.filter(r => r.s.recommendation)
   if (withRecs.length > 0) {
-    lines.push(`### Teknik Öneriler`, ``)
+    lines.push(`### ${t('report.tech.recommendationsHeading', locale)}`, ``)
     for (const { label, s } of withRecs) {
       lines.push(`- **${label} (${s.grade} ${s.score}/100):** ${s.recommendation}`)
     }
@@ -109,14 +112,14 @@ function buildActionPlan(
   )
 
   const lines: string[] = [
-    `# GEO Aksiyon Planı — ${siteName}`,
+    `# ${t('report.actionPlan.heading', locale, { siteName })}`,
     ``,
-    `| Alan | Değer |`,
+    `| ${t('report.field', locale)} | ${t('report.value', locale)} |`,
     `|------|-------|`,
-    `| Site | ${siteUrl} |`,
-    `| Dönem | ${report.period} |`,
-    `| Oluşturuldu | ${new Date(report.generatedAt).toLocaleDateString('tr-TR')} |`,
-    `| Bekleyen İyileştirme | ${pendingIssues.length} |`,
+    `| ${t('report.field.site', locale)} | ${siteUrl} |`,
+    `| ${t('report.field.period', locale)} | ${report.period} |`,
+    `| ${t('report.field.generatedAt', locale)} | ${new Date(report.generatedAt).toLocaleDateString('tr-TR')} |`,
+    `| ${t('report.field.pendingImprovements', locale)} | ${pendingIssues.length} |`,
     ``,
     `> ${report.summary}`,
     ``,
@@ -126,7 +129,7 @@ function buildActionPlan(
 
   // Teknik Durum
   if (qualityScores) {
-    lines.push(`## Teknik Durum`, ``)
+    lines.push(`## ${t('report.section.techStatus', locale)}`, ``)
     lines.push(...buildTechStatusTable(qualityScores, pageCount))
     lines.push(`---`, ``)
   }
@@ -138,26 +141,27 @@ function buildActionPlan(
         .map(([, s]) => s as QualityScore)
     : []
 
-  lines.push(`## Bekleyen İyileştirmeler`, ``)
+  lines.push(`## ${t('report.section.pendingImprovements', locale)}`, ``)
 
   if (sorted.length === 0 && techRecs.length === 0) {
-    lines.push('Tüm kontroller geçti. Site mükemmel durumda! 🎉')
+    lines.push(t('report.allChecksPassed', locale))
   } else if (sorted.length === 0) {
-    lines.push('Aktif issue bulunamadı. Aşağıdaki Teknik Durum önerilerine göz atın.')
+    lines.push(t('report.noActiveIssues', locale))
     lines.push(``)
   } else {
     sorted.forEach((issue, idx) => {
       const severityLabel: Record<string, string> = {
-        CRITICAL: '🔴 KRİTİK', HIGH: '🟠 YÜKSEK', MEDIUM: '🟡 ORTA', LOW: '🟢 DÜŞÜK',
+        CRITICAL: t('report.severity.critical', locale), HIGH: t('report.severity.high', locale),
+        MEDIUM: t('report.severity.medium', locale), LOW: t('report.severity.low', locale),
       }
       lines.push(`### ${idx + 1}. ${severityLabel[issue.severity] ?? issue.severity} — ${issue.title}`)
       lines.push(``)
-      lines.push(`**Kategori:** ${issue.category} &nbsp;|&nbsp; **Aksiyon:** ${issue.actionType}`)
+      lines.push(`${t('report.label.category', locale)} ${issue.category} &nbsp;|&nbsp; ${t('report.label.action', locale)} ${issue.actionType}`)
       lines.push(``)
-      lines.push(`**Açıklama:**  `)
+      lines.push(`${t('report.label.description', locale)}  `)
       lines.push(issue.description)
       lines.push(``)
-      lines.push(`**Etki:**  `)
+      lines.push(`${t('report.label.impact', locale)}  `)
       lines.push(issue.impact)
       lines.push(``)
       const payloadStr = renderPayload(issue.actionType, issue.actionPayload)
@@ -170,7 +174,7 @@ function buildActionPlan(
     })
   }
 
-  lines.push(`*Bu dosya GEO Platform tarafından otomatik oluşturulmuştur.*`)
+  lines.push(t('report.autoGenerated', locale))
   return lines.join('\n')
 }
 
@@ -205,18 +209,18 @@ function buildReportMd(
   pageCount: number
 ): string {
   const lines: string[] = [
-    `# GEO Raporu — ${siteName}`,
+    `# ${t('report.heading', locale, { siteName })}`,
     ``,
-    `| Alan | Değer |`,
+    `| ${t('report.field', locale)} | ${t('report.value', locale)} |`,
     `|------|-------|`,
-    `| Site | ${siteUrl} |`,
-    `| Dönem | ${report.period} |`,
-    `| Tetikleyici | ${report.triggerType === 'WEEKLY' ? 'Haftalık Otomatik' : 'Manuel'} |`,
-    `| Oluşturuldu | ${new Date(report.generatedAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })} |`,
+    `| ${t('report.field.site', locale)} | ${siteUrl} |`,
+    `| ${t('report.field.period', locale)} | ${report.period} |`,
+    `| ${t('report.field.trigger', locale)} | ${report.triggerType === 'WEEKLY' ? t('report.trigger.weekly', locale) : t('report.trigger.manual', locale)} |`,
+    `| ${t('report.field.generatedAt', locale)} | ${new Date(report.generatedAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })} |`,
     ``,
     `---`,
     ``,
-    `## Özet`,
+    `## ${t('report.section.summary', locale)}`,
     ``,
     `> ${report.summary}`,
     ``,
@@ -224,26 +228,26 @@ function buildReportMd(
 
   // Teknik Durum — enhanced with grades and scores
   if (snapshot) {
-    lines.push(`## Teknik Durum`, ``)
+    lines.push(`## ${t('report.section.techStatus', locale)}`, ``)
 
     if (qualityScores) {
       lines.push(...buildTechStatusTable(qualityScores, pageCount))
     } else {
       // Fallback: simple ✅/❌ table if scores unavailable
       const ok = '✅', fail = '❌'
-      lines.push(`| Kontrol | Durum |`)
+      lines.push(`| ${t('report.tech.control', locale)} | ${t('report.tech.status', locale)} |`)
       lines.push(`|---------|-------|`)
-      lines.push(`| HTTPS | ${snapshot.httpsEnabled ? ok : fail} |`)
-      lines.push(`| llms.txt | ${snapshot.hasLlmsTxt ? ok : fail} |`)
-      lines.push(`| robots.txt | ${snapshot.hasRobotsTxt ? ok : fail} |`)
-      lines.push(`| AI Botlar Engelli | ${snapshot.robotsBlocksAI ? `${fail} Evet` : `${ok} Hayır`} |`)
-      lines.push(`| Sitemap | ${snapshot.hasSitemap ? ok : fail} |`)
-      lines.push(`| Taranan Sayfa | ${pageCount} |`)
+      lines.push(`| ${t('report.tech.https', locale)} | ${snapshot.httpsEnabled ? ok : fail} |`)
+      lines.push(`| ${t('report.tech.llmsTxt', locale)} | ${snapshot.hasLlmsTxt ? ok : fail} |`)
+      lines.push(`| ${t('report.tech.robotsTxt', locale)} | ${snapshot.hasRobotsTxt ? ok : fail} |`)
+      lines.push(`| ${t('report.tech.aiBotsBlocked', locale)} | ${snapshot.robotsBlocksAI ? `${fail} ${t('report.tech.yes', locale)}` : `${ok} ${t('report.tech.no', locale)}`} |`)
+      lines.push(`| ${t('report.tech.sitemap', locale)} | ${snapshot.hasSitemap ? ok : fail} |`)
+      lines.push(`| ${t('report.tech.pagesScanned', locale)} | ${pageCount} |`)
       lines.push(``)
     }
 
     if (snapshot.hasLlmsTxt && snapshot.llmsTxtContent) {
-      lines.push(`### Mevcut llms.txt İçeriği`, ``)
+      lines.push(`### ${t('report.section.currentLlms', locale)}`, ``)
       lines.push(`\`\`\``)
       lines.push((snapshot.llmsTxtContent as string).trim())
       lines.push(`\`\`\``)
@@ -252,31 +256,31 @@ function buildReportMd(
   }
 
   // Stats
-  lines.push(`## İstatistikler`, ``)
-  lines.push(`| Metrik | Değer |`)
+  lines.push(`## ${t('report.section.stats', locale)}`, ``)
+  lines.push(`| ${t('report.stats.metric', locale)} | ${t('report.value', locale)} |`)
   lines.push(`|--------|-------|`)
-  lines.push(`| Bulunan issue | ${report.issuesFound} |`)
-  lines.push(`| Çözülen issue | ${report.issuesFixed} |`)
-  lines.push(`| Bekleyen issue | ${issues.filter(i => i.status === 'PENDING').length} |`)
-  lines.push(`| AI bot ziyareti | ${report.aiCrawlerVisits} |`)
-  lines.push(`| llms.txt güncellendi | ${report.llmsTxtUpdated ? 'Evet' : 'Hayır'} |`)
+  lines.push(`| ${t('report.stats.issuesFound', locale)} | ${report.issuesFound} |`)
+  lines.push(`| ${t('report.stats.issuesFixed', locale)} | ${report.issuesFixed} |`)
+  lines.push(`| ${t('report.stats.pendingIssues', locale)} | ${issues.filter(i => i.status === 'PENDING').length} |`)
+  lines.push(`| ${t('report.stats.aiBotVisits', locale)} | ${report.aiCrawlerVisits} |`)
+  lines.push(`| ${t('report.stats.llmsUpdated', locale)} | ${report.llmsTxtUpdated ? t('report.tech.yes', locale) : t('report.tech.no', locale)} |`)
   lines.push(``)
 
   // Prev period comparison
   if (prevReport) {
     const issueDelta = report.issuesFound - prevReport.issuesFound
     const fixedDelta = report.issuesFixed - prevReport.issuesFixed
-    lines.push(`## Önceki Dönemle Karşılaştırma`, ``)
-    lines.push(`| Metrik | Önceki | Şu An | Değişim |`)
+    lines.push(`## ${t('report.section.comparison', locale)}`, ``)
+    lines.push(`| ${t('report.stats.metric', locale)} | ${t('report.comparison.previous', locale)} | ${t('report.comparison.current', locale)} | ${t('report.comparison.change', locale)} |`)
     lines.push(`|--------|--------|-------|---------|`)
-    lines.push(`| Bulunan issue | ${prevReport.issuesFound} | ${report.issuesFound} | ${issueDelta >= 0 ? '+' : ''}${issueDelta} |`)
-    lines.push(`| Çözülen issue | ${prevReport.issuesFixed} | ${report.issuesFixed} | ${fixedDelta >= 0 ? '+' : ''}${fixedDelta} |`)
+    lines.push(`| ${t('report.stats.issuesFound', locale)} | ${prevReport.issuesFound} | ${report.issuesFound} | ${issueDelta >= 0 ? '+' : ''}${issueDelta} |`)
+    lines.push(`| ${t('report.stats.issuesFixed', locale)} | ${prevReport.issuesFixed} | ${report.issuesFixed} | ${fixedDelta >= 0 ? '+' : ''}${fixedDelta} |`)
     lines.push(``)
   }
 
   // All findings grouped by severity
   if (issues.length > 0) {
-    lines.push(`## Tüm Bulgular`, ``)
+    lines.push(`## ${t('report.section.allFindings', locale)}`, ``)
 
     const severityGroups: Record<string, Issue[]> = { CRITICAL: [], HIGH: [], MEDIUM: [], LOW: [] }
     for (const issue of issues) {
@@ -285,10 +289,11 @@ function buildReportMd(
     }
 
     const severityLabel: Record<string, string> = {
-      CRITICAL: '🔴 Kritik', HIGH: '🟠 Yüksek', MEDIUM: '🟡 Orta', LOW: '🟢 Düşük',
+      CRITICAL: t('report.severityHeading.critical', locale), HIGH: t('report.severityHeading.high', locale),
+      MEDIUM: t('report.severityHeading.medium', locale), LOW: t('report.severityHeading.low', locale),
     }
     const statusLabel: Record<string, string> = {
-      PENDING: 'Bekliyor', APPLIED: 'Uygulandı', DISMISSED: 'Reddedildi',
+      PENDING: t('report.status.pending', locale), APPLIED: t('report.status.applied', locale), DISMISSED: t('report.status.dismissed', locale),
     }
 
     for (const [severity, group] of Object.entries(severityGroups)) {
@@ -296,11 +301,11 @@ function buildReportMd(
       lines.push(`### ${severityLabel[severity]}`, ``)
       for (const issue of group) {
         lines.push(`#### ${issue.title}`, ``)
-        lines.push(`**Durum:** ${statusLabel[issue.status] ?? issue.status} &nbsp;|&nbsp; **Kategori:** ${issue.category} &nbsp;|&nbsp; **Aksiyon:** ${issue.actionType}`)
+        lines.push(`${t('report.label.status', locale)} ${statusLabel[issue.status] ?? issue.status} &nbsp;|&nbsp; ${t('report.label.category', locale)} ${issue.category} &nbsp;|&nbsp; ${t('report.label.action', locale)} ${issue.actionType}`)
         lines.push(``)
         lines.push(issue.description)
         lines.push(``)
-        lines.push(`*Etki: ${issue.impact}*`)
+        lines.push(t('report.label.impactInline', locale, { impact: issue.impact }))
         lines.push(``)
         const payloadStr = renderPayload(issue.actionType, issue.actionPayload)
         if (payloadStr) {
@@ -312,7 +317,7 @@ function buildReportMd(
   }
 
   lines.push(`---`)
-  lines.push(`*Bu rapor GEO Platform tarafından otomatik oluşturulmuştur.*`)
+  lines.push(t('report.autoGenerated.report', locale))
   return lines.join('\n')
 }
 
@@ -321,15 +326,15 @@ export async function GET(
   { params }: { params: { siteId: string; reportId: string } }
 ) {
   const user = await getSessionUser()
-  if (!user) return NextResponse.json({ error: 'Giriş yapmanız gerekiyor.' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: t('api.error.unauthorized', locale) }, { status: 401 })
 
   const site = await requireSiteOwner(params.siteId, user.id)
-  if (!site) return NextResponse.json({ error: 'Bulunamadı.' }, { status: 404 })
+  if (!site) return NextResponse.json({ error: t('api.error.notFound', locale) }, { status: 404 })
 
   const report = await db.report.findFirst({
     where: { id: params.reportId, siteId: params.siteId },
   })
-  if (!report) return NextResponse.json({ error: 'Rapor bulunamadı.' }, { status: 404 })
+  if (!report) return NextResponse.json({ error: t('api.error.reportNotFound', locale) }, { status: 404 })
 
   const { searchParams } = new URL(request.url)
   const type = searchParams.get('type') ?? 'report'

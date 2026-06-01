@@ -1,3 +1,5 @@
+import { t } from '@/lib/i18n'
+
 export interface QualityScore {
   score: number
   grade: 'A' | 'B' | 'C' | 'D' | 'F'
@@ -16,23 +18,23 @@ function toGrade(score: number): QualityScore['grade'] {
   return 'F'
 }
 
-function toLabel(grade: QualityScore['grade']): string {
-  return { A: 'Mükemmel', B: 'İyi', C: 'Orta', D: 'Zayıf', F: 'Yok/Kötü' }[grade]
+function toLabel(grade: QualityScore['grade'], locale: string): string {
+  return t(`quality.grade.${grade}`, locale)
 }
 
-export function scoreLlmsTxt(content: string | null, hasLlmsTxt: boolean): QualityScore {
+export function scoreLlmsTxt(content: string | null, hasLlmsTxt: boolean, locale: string = 'tr'): QualityScore {
   if (!hasLlmsTxt || !content) {
     return {
-      score: 0, grade: 'F', label: 'Yok', detail: 'llms.txt dosyası bulunamadı.',
-      recommendation: 'Sitenizin kök dizinine llms.txt oluşturun. # başlık, > açıklama ve ## Sayfalar bölümlerini ekleyin. AI sistemleri bu dosyayı rehber olarak kullanır.',
+      score: 0, grade: 'F', label: t('quality.llms.missing.label', locale), detail: t('quality.llms.missing.detail', locale),
+      recommendation: t('quality.llms.missing.recommendation', locale),
     }
   }
 
   const trimmed = content.trim()
   if (trimmed.length === 0) {
     return {
-      score: 10, grade: 'F', label: 'Boş', detail: 'llms.txt var ama içeriği boş.',
-      recommendation: 'llms.txt dosyasına içerik ekleyin: # Şirket Adı, > Kısa açıklama ve ## Sayfalar bölümüyle önemli URL\'lerinizi listeleyin.',
+      score: 10, grade: 'F', label: t('quality.llms.empty.label', locale), detail: t('quality.llms.empty.detail', locale),
+      recommendation: t('quality.llms.empty.recommendation', locale),
     }
   }
 
@@ -44,32 +46,32 @@ export function scoreLlmsTxt(content: string | null, hasLlmsTxt: boolean): Quali
   const sectionCount = (trimmed.match(/^##\s+/gm) ?? []).length
   const charCount = trimmed.length
 
-  if (hasTitle) { score += 15; details.push('başlık ✓') }
-  if (hasDescription) { score += 20; details.push('açıklama ✓') }
+  if (hasTitle) { score += 15; details.push(t('quality.llms.detail.title', locale)) }
+  if (hasDescription) { score += 20; details.push(t('quality.llms.detail.description', locale)) }
   score += Math.min(sectionCount * 10, 30)
-  if (sectionCount > 0) details.push(`${sectionCount} bölüm`)
-  if (charCount > 500) { score += 15; details.push('yeterli içerik') }
-  if (charCount > 1500) { score += 10; details.push('zengin içerik') }
+  if (sectionCount > 0) details.push(t('quality.llms.detail.sections', locale, { count: sectionCount }))
+  if (charCount > 500) { score += 15; details.push(t('quality.llms.detail.enoughContent', locale)) }
+  if (charCount > 1500) { score += 10; details.push(t('quality.llms.detail.richContent', locale)) }
 
   score = Math.min(score, 100)
   const grade = toGrade(score)
 
   const missing: string[] = []
-  if (!hasTitle) missing.push('# başlık')
-  if (!hasDescription) missing.push('> açıklama')
-  if (sectionCount === 0) missing.push('## bölüm')
+  if (!hasTitle) missing.push(t('quality.llms.missing.title', locale))
+  if (!hasDescription) missing.push(t('quality.llms.missing.description', locale))
+  if (sectionCount === 0) missing.push(t('quality.llms.missing.section', locale))
 
   const recommendation = missing.length > 0
-    ? `Eksik bölümleri ekleyin: ${missing.join(', ')}. İçerik zenginleştikçe skor otomatik yükselir.`
+    ? t('quality.llms.recommendation.missing', locale, { missing: missing.join(', ') })
     : charCount < 500
-      ? 'Sayfa URL\'lerini ve kısa açıklamalarını llms.txt\'e ekleyerek içeriği zenginleştirin.'
+      ? t('quality.llms.recommendation.enrich', locale)
       : undefined
 
   return {
     score,
     grade,
-    label: toLabel(grade),
-    detail: details.length > 0 ? details.join(', ') : `${charCount} karakter`,
+    label: toLabel(grade, locale),
+    detail: details.length > 0 ? details.join(', ') : t('quality.llms.detail.charCount', locale, { count: charCount }),
     recommendation,
   }
 }
@@ -77,60 +79,62 @@ export function scoreLlmsTxt(content: string | null, hasLlmsTxt: boolean): Quali
 export function scoreRobotsTxt(
   hasRobotsTxt: boolean,
   robotsBlocksAI: boolean,
-  robotsContent?: string | null
+  robotsContent?: string | null,
+  locale: string = 'tr'
 ): QualityScore {
   if (!hasRobotsTxt) {
     return {
-      score: 30, grade: 'D', label: 'Yok', detail: 'robots.txt yok — varsayılan izin.',
-      recommendation: 'robots.txt dosyası oluşturun. En azından "User-agent: *\\nAllow: /" ve "Sitemap: https://siteniz.com/sitemap.xml" satırlarını ekleyin.',
+      score: 30, grade: 'D', label: t('quality.robots.missing.label', locale), detail: t('quality.robots.missing.detail', locale),
+      recommendation: t('quality.robots.missing.recommendation', locale),
     }
   }
   if (robotsBlocksAI) {
     return {
-      score: 0, grade: 'F', label: 'Engelliyor', detail: 'AI botlar robots.txt ile engellendi.',
-      recommendation: 'robots.txt\'teki GPTBot, ClaudeBot, PerplexityBot için Disallow kurallarını kaldırın ya da "Allow: /" ekleyin. Aksi hâlde AI arama motorları sitenizi indexleyemez.',
+      score: 0, grade: 'F', label: t('quality.robots.blocked.label', locale), detail: t('quality.robots.blocked.detail', locale),
+      recommendation: t('quality.robots.blocked.recommendation', locale),
     }
   }
 
   let score = 50
-  const details: string[] = ['mevcut']
+  const details: string[] = [t('quality.robots.detail.present', locale)]
   const missing: string[] = []
 
   if (robotsContent) {
-    if (/Sitemap:/i.test(robotsContent)) { score += 10; details.push('sitemap referansı') }
-    else missing.push('Sitemap referansı')
+    if (/Sitemap:/i.test(robotsContent)) { score += 10; details.push(t('quality.robots.detail.sitemapRef', locale)) }
+    else missing.push(t('quality.robots.missing.sitemapRef', locale))
     const agentCount = (robotsContent.match(/^User-agent:/gim) ?? []).length
-    if (agentCount >= 2) { score += 20; details.push(`${agentCount} ajan kuralı`) }
-    else missing.push('birden fazla User-agent kuralı')
+    if (agentCount >= 2) { score += 20; details.push(t('quality.robots.detail.agentRules', locale, { count: agentCount })) }
+    else missing.push(t('quality.robots.missing.multiAgent', locale))
     const hasAiBotRules = /GPTBot|ClaudeBot|PerplexityBot|OAI-SearchBot|Google-Extended/i.test(robotsContent)
-    if (hasAiBotRules) { score += 20; details.push('AI bot kuralları') }
-    else missing.push('AI bot explicit izinleri (GPTBot, ClaudeBot, PerplexityBot, Google-Extended)')
+    if (hasAiBotRules) { score += 20; details.push(t('quality.robots.detail.aiBotRules', locale)) }
+    else missing.push(t('quality.robots.missing.aiBots', locale))
   }
 
   score = Math.min(score, 100)
   const grade = toGrade(score)
   const recommendation = missing.length > 0
-    ? `Skoru 100\'e çıkarmak için ekleyin: ${missing.join(', ')}.`
+    ? t('quality.robots.recommendation', locale, { missing: missing.join(', ') })
     : undefined
 
-  return { score, grade, label: toLabel(grade), detail: details.join(', '), recommendation }
+  return { score, grade, label: toLabel(grade, locale), detail: details.join(', '), recommendation }
 }
 
 export function scoreAiBotAccess(
   robotsBlocksAI: boolean,
   hasRobotsTxt: boolean,
-  allowedBots?: string[]
+  allowedBots?: string[],
+  locale: string = 'tr'
 ): QualityScore {
   if (robotsBlocksAI) {
     return {
-      score: 0, grade: 'F', label: 'Engelli', detail: 'AI botlar erişemiyor.',
-      recommendation: 'robots.txt\'ten AI bot Disallow kurallarını kaldırın. GPTBot, ClaudeBot, PerplexityBot, OAI-SearchBot ve Google-Extended için "Allow: /" ekleyin.',
+      score: 0, grade: 'F', label: t('quality.aiBot.blocked.label', locale), detail: t('quality.aiBot.blocked.detail', locale),
+      recommendation: t('quality.aiBot.blocked.recommendation', locale),
     }
   }
   if (!hasRobotsTxt) {
     return {
-      score: 50, grade: 'C', label: 'Varsayılan', detail: 'robots.txt yok, botlar varsayılan olarak serbest.',
-      recommendation: 'robots.txt oluşturun ve şu kuralları ekleyin:\nUser-agent: GPTBot\nAllow: /\n\nUser-agent: ClaudeBot\nAllow: /\n\nUser-agent: PerplexityBot\nAllow: /\n\nUser-agent: Google-Extended\nAllow: /\n\nUser-agent: OAI-SearchBot\nAllow: /',
+      score: 50, grade: 'C', label: t('quality.aiBot.default.label', locale), detail: t('quality.aiBot.default.detail', locale),
+      recommendation: t('quality.aiBot.default.recommendation', locale),
     }
   }
 
@@ -147,29 +151,29 @@ export function scoreAiBotAccess(
   score = Math.min(score, 100)
   const grade = toGrade(score)
   const detail = foundBots.length > 0
-    ? `Explicit izin: ${foundBots.join(', ')}`
-    : 'Genel izin var, explicit kural yok.'
+    ? t('quality.aiBot.explicit.detail', locale, { bots: foundBots.join(', ') })
+    : t('quality.aiBot.generic.detail', locale)
 
   const missingBots = AI_BOTS.filter(b => !allowed.includes(b))
   const recommendation = missingBots.length > 0 && score < 100
-    ? `robots.txt\'e şu botlar için explicit "Allow: /" ekleyin: ${missingBots.join(', ')}.`
+    ? t('quality.aiBot.recommendation', locale, { bots: missingBots.join(', ') })
     : undefined
 
-  return { score, grade, label: toLabel(grade), detail, recommendation }
+  return { score, grade, label: toLabel(grade, locale), detail, recommendation }
 }
 
-export function scoreSitemap(hasSitemap: boolean, urlCount?: number | null): QualityScore {
+export function scoreSitemap(hasSitemap: boolean, urlCount?: number | null, locale: string = 'tr'): QualityScore {
   if (!hasSitemap) {
     return {
-      score: 0, grade: 'F', label: 'Yok', detail: 'Sitemap bulunamadı.',
-      recommendation: 'sitemap.xml oluşturun ve robots.txt\'e "Sitemap: https://siteniz.com/sitemap.xml" satırını ekleyin. WordPress ve Next.js için otomatik sitemap eklentileri mevcuttur.',
+      score: 0, grade: 'F', label: t('quality.sitemap.missing.label', locale), detail: t('quality.sitemap.missing.detail', locale),
+      recommendation: t('quality.sitemap.missing.recommendation', locale),
     }
   }
 
   if (urlCount == null || urlCount === 0) {
     return {
-      score: 60, grade: 'C', label: 'Mevcut', detail: 'Sitemap var, URL sayısı tespit edilemedi.',
-      recommendation: 'Sitemap erişilebilir ancak URL\'ler okunamadı. sitemap.xml\'in kamuya açık ve geçerli XML formatında olduğunu doğrulayın.',
+      score: 60, grade: 'C', label: t('quality.sitemap.present.label', locale), detail: t('quality.sitemap.present.detail', locale),
+      recommendation: t('quality.sitemap.present.recommendation', locale),
     }
   }
 
@@ -180,20 +184,20 @@ export function scoreSitemap(hasSitemap: boolean, urlCount?: number | null): Qua
 
   const grade = toGrade(score)
   const recommendation = urlCount < 50
-    ? `Sitemap\'te ${urlCount} URL var. 50+ URL ile skor 100\'e ulaşır — tüm ürün, hizmet ve blog sayfalarını sitemap\'e ekleyin.`
+    ? t('quality.sitemap.recommendation', locale, { count: urlCount })
     : undefined
 
-  return { score, grade, label: toLabel(grade), detail: `${urlCount} URL`, recommendation }
+  return { score, grade, label: toLabel(grade, locale), detail: t('quality.sitemap.detail.urlCount', locale, { count: urlCount }), recommendation }
 }
 
-export function scoreHttps(httpsEnabled: boolean): QualityScore {
+export function scoreHttps(httpsEnabled: boolean, locale: string = 'tr'): QualityScore {
   if (!httpsEnabled) {
     return {
-      score: 0, grade: 'F', label: 'HTTP', detail: 'HTTPS aktif değil.',
-      recommendation: 'SSL sertifikası edinin (Let\'s Encrypt ücretsizdir) ve tüm HTTP trafiğini HTTPS\'e 301 yönlendirme ile aktarın.',
+      score: 0, grade: 'F', label: t('quality.https.missing.label', locale), detail: t('quality.https.missing.detail', locale),
+      recommendation: t('quality.https.missing.recommendation', locale),
     }
   }
-  return { score: 100, grade: 'A', label: 'Güvenli', detail: 'HTTPS aktif.' }
+  return { score: 100, grade: 'A', label: t('quality.https.ok.label', locale), detail: t('quality.https.ok.detail', locale) }
 }
 
 /** Tüm teknik öğeler için skorları tek çağrıda hesaplar. */
@@ -209,14 +213,14 @@ export function computeTechnicalScores(snapshot: {
     allowedBots?: string[]
     sitemapUrlCount?: number | null
   } | null
-}) {
+}, locale: string = 'tr') {
   const td = snapshot.technicalDetails ?? {}
   return {
-    llmsTxt: scoreLlmsTxt(snapshot.llmsTxtContent, snapshot.hasLlmsTxt),
-    robotsTxt: scoreRobotsTxt(snapshot.hasRobotsTxt, snapshot.robotsBlocksAI, td.robotsContent),
-    aiBotAccess: scoreAiBotAccess(snapshot.robotsBlocksAI, snapshot.hasRobotsTxt, td.allowedBots),
-    sitemap: scoreSitemap(snapshot.hasSitemap, td.sitemapUrlCount),
-    https: scoreHttps(snapshot.httpsEnabled),
+    llmsTxt: scoreLlmsTxt(snapshot.llmsTxtContent, snapshot.hasLlmsTxt, locale),
+    robotsTxt: scoreRobotsTxt(snapshot.hasRobotsTxt, snapshot.robotsBlocksAI, td.robotsContent, locale),
+    aiBotAccess: scoreAiBotAccess(snapshot.robotsBlocksAI, snapshot.hasRobotsTxt, td.allowedBots, locale),
+    sitemap: scoreSitemap(snapshot.hasSitemap, td.sitemapUrlCount, locale),
+    https: scoreHttps(snapshot.httpsEnabled, locale),
   }
 }
 
