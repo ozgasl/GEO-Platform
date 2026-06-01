@@ -5,7 +5,7 @@ GEO (Generative Engine Optimization) SaaS platformu. ChatGPT, Claude, Perplexity
 
 **Branch:** `main`
 **Repo:** `ozgasl/GEO-Platform`
-**Versiyon:** v0.2.1
+**Versiyon:** v1.0.0
 
 ---
 

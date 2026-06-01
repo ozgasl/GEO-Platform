@@ -2,7 +2,7 @@
 
 GEO (Generative Engine Optimization) SaaS platform. Analyzes and automatically improves site visibility on AI search engines like ChatGPT, Claude, and Perplexity.
 
-**Version:** v0.2.1 · **Live:** [geo-platform-alpha.vercel.app](https://geo-platform-alpha.vercel.app)
+**Version:** v1.0.0 · **Live:** [geo-platform-alpha.vercel.app](https://geo-platform-alpha.vercel.app)
 
 ---
 
@@ -151,6 +151,19 @@ After every crawl a report is auto-generated. From the Reports page each report 
 ---
 
 ## Changelog
+
+### v1.0.0 (2026-06-01)
+- **Onboarding flow** — new users guided through first crawl with optimistic UX
+- **Landing page** — value prop, how it works, pricing table (TR)
+- **Advisor Mode artifacts** — every issue card shows a copy-ready deployable artifact (llms.txt, JSON-LD, robots.txt snippet)
+- **Trial gate** — FREE tier: 1 site + 1 free report; scan blocked after trial with upgrade prompt
+- **Upgrade page** — `/dashboard/upgrade` pricing table; payment integration placeholder (iyzico/PayTR pending agreement)
+- **Account settings** — name edit, plan badge, password change, data export, account deletion (cascade)
+- **Admin panel** — `/admin` user list + plan override, protected by `ADMIN_EMAIL` env var
+- **i18n infrastructure** — `next-intl` + `messages/tr.json` (~280 keys); locale threaded through all backend functions; EN/DE ready as file additions
+- **Rate limiting** — site creation (10/IP/hr) and crawl trigger (3/site/hr)
+- **Error pages** — custom 404 and error boundary at root, `/dashboard`, and site-detail level
+- **Security hardening** — bcrypt password verification on credentials auth, register endpoint, MONITORING_SECRET now required in production, ownership audit passed
 
 ### v0.2.1 (2026-05-31)
 - Report trigger type labels: "Haftalık" / "Manuel" badges on reports page
