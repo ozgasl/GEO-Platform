@@ -75,21 +75,39 @@ export default async function ReportsPage({ params }: { params: { siteId: string
                       <span>AI Ziyaret:</span>
                       <span className="font-semibold text-gray-900 text-right">{report.aiCrawlerVisits}</span>
                     </div>
-                    <div className="flex gap-1.5 mt-1">
-                      <a
-                        href={`${base}?type=action-plan`}
-                        download
-                        className="text-xs px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-medium transition-colors"
-                      >
-                        Aksiyon Planı
-                      </a>
-                      <a
-                        href={`${base}?type=report`}
-                        download
-                        className="text-xs px-2.5 py-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 font-medium transition-colors"
-                      >
-                        Rapor
-                      </a>
+                    <div className="flex flex-col items-end gap-1 mt-1">
+                      <div className="flex gap-1.5">
+                        <a
+                          href={`${base}?type=action-plan&format=pdf`}
+                          download
+                          className="text-xs px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-medium transition-colors"
+                        >
+                          Aksiyon Plan&#305;
+                        </a>
+                        <a
+                          href={`${base}?type=report&format=pdf`}
+                          download
+                          className="text-xs px-2.5 py-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 font-medium transition-colors"
+                        >
+                          Rapor
+                        </a>
+                      </div>
+                      <div className="flex gap-2">
+                        <a
+                          href={`${base}?type=action-plan&format=md`}
+                          download
+                          className="text-xs text-gray-400 hover:text-gray-600"
+                        >
+                          .md
+                        </a>
+                        <a
+                          href={`${base}?type=report&format=md`}
+                          download
+                          className="text-xs text-gray-400 hover:text-gray-600"
+                        >
+                          .md
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </div>

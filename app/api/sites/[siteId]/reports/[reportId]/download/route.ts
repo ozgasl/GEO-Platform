@@ -3,6 +3,9 @@ import { getSessionUser, requireSiteOwner } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import { computeTechnicalScores, type QualityScore } from '@/lib/analyzer/quality'
 import { t } from '@/lib/i18n'
+import { renderToBuffer } from '@react-pdf/renderer'
+import React from 'react'
+import { ActionPlanPdf, ReportPdf } from '@/lib/reports/pdf'
 
 const locale = 'tr'
 
@@ -340,6 +343,7 @@ export async function GET(
   // TODO(security): [LOW] `type` doğrulanmıyor; 'action-plan' dışındaki tüm değerler
   // sessizce 'report' gibi davranıyor. Bilinmeyen değer için 400 döndürmek daha temiz olur.
   const type = searchParams.get('type') ?? 'report'
+  const format = searchParams.get('format') ?? 'pdf'
   const dateStr = formatDate(new Date(report.generatedAt))
   const slug = siteSlug(site.url)
 
@@ -381,6 +385,49 @@ export async function GET(
       })
     : null
 
+  if (type === 'action-plan' && format === 'pdf') {
+    const techScores = qualityScores ? [
+      { label: 'HTTPS',           grade: qualityScores.https.grade,        score: qualityScores.https.score,        recommendation: qualityScores.https.recommendation },
+      { label: 'llms.txt',        grade: qualityScores.llmsTxt.grade,      score: qualityScores.llmsTxt.score,      recommendation: qualityScores.llmsTxt.recommendation },
+      { label: 'robots.txt',      grade: qualityScores.robotsTxt.grade,    score: qualityScores.robotsTxt.score,    recommendation: qualityScores.robotsTxt.recommendation },
+      { label: 'AI Botlara İzin', grade: qualityScores.aiBotAccess.grade,  score: qualityScores.aiBotAccess.score,  recommendation: qualityScores.aiBotAccess.recommendation },
+      { label: 'Sitemap',         grade: qualityScores.sitemap.grade,      score: qualityScores.sitemap.score,      recommendation: qualityScores.sitemap.recommendation },
+    ] : []
+
+    const pendingIssues = issues.filter(i => i.status === 'PENDING')
+      .sort((a, b) => {
+        const o: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
+        return (o[a.severity] ?? 4) - (o[b.severity] ?? 4)
+      })
+      .map(i => ({
+        severity: i.severity,
+        category: i.category,
+        title: i.title,
+        description: i.description,
+        impact: i.impact,
+        actionType: i.actionType,
+        deployInstructions: renderPayload(i.actionType, i.actionPayload) || undefined,
+      }))
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pdfBuffer = await renderToBuffer(React.createElement(ActionPlanPdf, {
+      siteName: site.name,
+      siteUrl: site.url,
+      period: report.period,
+      generatedAt: new Date(report.generatedAt),
+      summary: report.summary,
+      pendingCount: pendingIssues.length,
+      techScores,
+      issues: pendingIssues,
+    }) as any)
+    return new NextResponse(new Uint8Array(pdfBuffer), {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="Action_Plan_${slug}_${dateStr}.pdf"`,
+      },
+    })
+  }
+
   if (type === 'action-plan') {
     const content = buildActionPlan(report, issues, site.name, site.url, qualityScores, pageCount)
     return new NextResponse(content, {
@@ -396,6 +443,53 @@ export async function GET(
     orderBy: { generatedAt: 'desc' },
     select: { issuesFound: true, issuesFixed: true },
   })
+
+  if (format === 'pdf') {
+    const techScores = qualityScores ? [
+      { label: 'HTTPS',           grade: qualityScores.https.grade,        score: qualityScores.https.score,        recommendation: qualityScores.https.recommendation },
+      { label: 'llms.txt',        grade: qualityScores.llmsTxt.grade,      score: qualityScores.llmsTxt.score,      recommendation: qualityScores.llmsTxt.recommendation },
+      { label: 'robots.txt',      grade: qualityScores.robotsTxt.grade,    score: qualityScores.robotsTxt.score,    recommendation: qualityScores.robotsTxt.recommendation },
+      { label: 'AI Botlara İzin', grade: qualityScores.aiBotAccess.grade,  score: qualityScores.aiBotAccess.score,  recommendation: qualityScores.aiBotAccess.recommendation },
+      { label: 'Sitemap',         grade: qualityScores.sitemap.grade,      score: qualityScores.sitemap.score,      recommendation: qualityScores.sitemap.recommendation },
+    ] : []
+
+    const pendingCount = issues.filter(i => i.status === 'PENDING').length
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pdfBuffer = await renderToBuffer(React.createElement(ReportPdf, {
+      siteName: site.name,
+      siteUrl: site.url,
+      period: report.period,
+      triggerType: report.triggerType,
+      generatedAt: new Date(report.generatedAt),
+      summary: report.summary,
+      techScores,
+      llmsTxtContent: snapshot?.llmsTxtContent ?? null,
+      stats: {
+        issuesFound: report.issuesFound,
+        issuesFixed: report.issuesFixed,
+        issuesPending: pendingCount,
+        aiVisits: report.aiCrawlerVisits,
+        llmsTxtUpdated: report.llmsTxtUpdated,
+      },
+      prevStats: prevReport ?? null,
+      findings: issues.map(i => ({
+        severity: i.severity,
+        category: i.category,
+        title: i.title,
+        description: i.description,
+        impact: i.impact,
+        status: i.status,
+        actionType: i.actionType,
+      })),
+    }) as any)
+    return new NextResponse(new Uint8Array(pdfBuffer), {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="Report_${slug}_${dateStr}.pdf"`,
+      },
+    })
+  }
 
   const content = buildReportMd(report, issues, snapshot, site.name, site.url, prevReport, qualityScores, pageCount)
   return new NextResponse(content, {
