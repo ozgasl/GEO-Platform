@@ -116,7 +116,7 @@ function PageFooter({ generatedAt }: { generatedAt: Date }) {
       <Text style={styles.footerText}>
         {generatedAt.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
         {'  '}
-        <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+        <Text render={({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) => `${pageNumber} / ${totalPages}`} />
       </Text>
     </View>
   )
