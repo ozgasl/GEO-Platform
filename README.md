@@ -2,7 +2,7 @@
 
 GEO (Generative Engine Optimization) SaaS platform. Analyzes and automatically improves site visibility on AI search engines like ChatGPT, Claude, and Perplexity.
 
-**Version:** v1.0.0 · **Live:** [obsey.io](https://obsey.io)
+**Version:** v1.0.1 · **Live:** [obsey.io](https://obsey.io)
 
 ---
 
@@ -10,9 +10,10 @@ GEO (Generative Engine Optimization) SaaS platform. Analyzes and automatically i
 
 - Crawls your site (Playwright, GPTBot user-agent)
 - Detects GEO issues: missing llms.txt, robots.txt blocking AI bots, missing schema markup, thin content
-- Auto-fixes issues in PILOT mode (llms.txt generation, schema injection, robots.txt repair)
-- Generates a report after every crawl + weekly — downloadable as Action Plan and Report markdown files
-- Monitors real AI bot visits (GPTBot, ClaudeBot, PerplexityBot)
+- Generates deployable artifacts per issue (llms.txt, JSON-LD schema, robots.txt snippets) in Advisor mode
+- Generates a report after every crawl + weekly — downloadable as PDF or Markdown (Action Plan + Report)
+- Monitors AI bot visits (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, and 9 more)
+- Tracks 16 AI bots total including ChatGPT-User, meta-externalagent, YouBot, DuckAssistBot, Applebot-Extended
 
 ---
 
@@ -126,18 +127,30 @@ npx tsx scripts/test-crawl.ts https://example.com
 | POST | `/api/sites/[siteId]/issues/[id]/dismiss` | Dismiss issue |
 | POST | `/api/sites/[siteId]/actions/[id]/revert` | Revert applied action |
 | GET/POST | `/api/sites/[siteId]/reports` | List / manually trigger report |
-| GET | `/api/sites/[siteId]/reports/[id]/download?type=action-plan\|report` | Download .md |
+| GET | `/api/sites/[siteId]/reports/[id]/download?type=action-plan\|report&format=pdf\|md` | Download PDF or .md |
 | GET | `/api/sites/[siteId]/snippet` | Monitoring JS snippet |
+| POST | `/api/auth/register` | Register with email + password |
+| PATCH | `/api/account` | Update name |
+| PATCH | `/api/account/password` | Change password |
+| GET/DELETE | `/api/account` | Export data / delete account |
+| POST | `/api/admin/users/[id]/plan` | Override user plan (admin only) |
+| POST | `/api/payments/checkout` | Payment checkout (stub — pending provider) |
+| POST | `/api/payments/webhook` | Payment webhook (stub) |
 
 ---
 
 ## Report Downloads
 
-After every crawl a report is auto-generated. From the Reports page each report offers two downloads:
+After every crawl a report is auto-generated. From the Reports page each report offers four downloads:
 
-**Action Plan** (`Action_Plan_sitename_MMDDYYYY.md`) — all pending issues with severity labels, descriptions, and ready-to-use fix content (llms.txt draft, robots.txt patches, schema type details). Paste directly into Cursor, Lovable, or any AI coding tool.
+| Button | Format | Contents |
+|--------|--------|----------|
+| **Aksiyon Planı PDF** | PDF | Pending issues with severity badges, deploy instructions, tech status table |
+| **Aksiyon Planı MD** | Markdown | Same content — paste into Cursor, Lovable, or any AI tool |
+| **Rapor PDF** | PDF | GEO score, tech status, stats, all findings, period comparison |
+| **Rapor MD** | Markdown | Same content — machine-readable |
 
-**Report** (`Report_sitename_MMDDYYYY.md`) — GEO score summary, technical status (HTTPS / llms.txt / robots.txt / sitemap), all findings grouped by severity with full descriptions, previous period comparison.
+Font: NotoSans (full Turkish glyph support) via `@expo-google-fonts/noto-sans` CDN.
 
 ---
 
@@ -147,10 +160,39 @@ After every crawl a report is auto-generated. From the Reports page each report 
 - **Railway `DATABASE_URL`** uses the direct Neon URL (no pooler, no pgbouncer flag).
 - Never add Inngest `serve()` to Vercel — causes duplicate cron runs and issue duplication.
 - Run `prisma migrate deploy` with the direct URL only.
+- **DB admin scripts**: use `scripts/upgrade-account.ts` pattern (a proper `.ts` file) — `npx tsx -e "..."` inline doesn't work due to CJS top-level await restrictions.
+- **`ADMIN_EMAIL`** env var must be set in Vercel for `/admin` to be accessible.
+- **`MONITORING_SECRET`** env var required in production — `snippet.ts` throws if unset.
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `lib/reports/pdf.tsx` | PDF generation components (ActionPlanPdf, ReportPdf) |
+| `lib/reports/font-data.ts` | *(deleted)* |
+| `lib/i18n/index.ts` | t(key, locale) helper, defaults to TR |
+| `messages/tr.json` | ~280 Turkish translation keys |
+| `lib/payments/provider.ts` | Payment provider interface (StubPaymentProvider until iyzico/PayTR) |
+| `lib/rate-limit.ts` | In-memory sliding-window rate limiter |
+| `public/brand/` | Obsey wordmark SVGs and PNGs (light + dark) |
+| `public/llms.txt` | Obsey product description for AI systems |
+| `app/robots.ts` | Allows all AI bots + Googlebot; references sitemap |
+| `app/sitemap.ts` | 3-URL sitemap for obsey.io |
 
 ---
 
 ## Changelog
+
+### v1.0.1 (2026-06-01)
+- **Rebrand** — GEO Platform → Obsey; brand assets in `public/brand/`; favicon (`app/icon.svg`) with two-circle eye mark
+- **PDF reports** — downloadable Action Plan and Report PDFs with Obsey branding, color-coded severity badges, full Turkish support (NotoSans via jsDelivr CDN)
+- **4 download buttons** — Aksiyon Planı PDF/MD + Rapor PDF/MD replacing the old 2-button + tiny .md links
+- **16 AI bot tracking** — added Google-Extended, ChatGPT-User, meta-externalagent, Applebot-Extended, YouBot, Amazonbot, DuckAssistBot, Bytespider, cohere-ai
+- **Teknik Durum scoring** — robots.txt now achieves 100/100 with explicit AI bot rules; recommendations shown for A-grade items below 100; sitemap shows recommendations for <50 URLs
+- **Deploy Talimatı** — Advisor issue cards show AI-generated content when available (merged "Gösterilen Aksiyon" into unified Deploy Talimatı section)
+- **obsey.io GEO setup** — `public/llms.txt`, `app/robots.ts`, `app/sitemap.ts`, Organization + SoftwareApplication JSON-LD schema on homepage
+- **Bing Webmaster Tools** verified; Google Search Console submission instructions provided
+- **UI fixes** — sidebar brand name extracts clean name (Cedrix not www.cedrix.io); Ayarlar below site list; name save refreshes sidebar
 
 ### v1.0.0 (2026-06-01)
 - **Onboarding flow** — new users guided through first crawl with optimistic UX

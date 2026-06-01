@@ -5,7 +5,7 @@ Obsey — GEO (Generative Engine Optimization) SaaS platformu. ChatGPT, Claude, 
 
 **Branch:** `main`
 **Repo:** `ozgasl/GEO-Platform`
-**Versiyon:** v1.0.0
+**Versiyon:** v1.0.1
 
 ---
 
@@ -165,7 +165,15 @@ components/dashboard/
 
 ---
 
-## Sonraki Adımlar (v0.3)
-- Plan limiti kontrolleri (STARTER: 1 site)
+## Önemli Notlar (v1.0.1)
+- **PDF font:** `@expo-google-fonts/noto-sans@0.2.3` jsDelivr CDN — complete TTF (split subset kullanma!)
+- **Brand assets:** `public/brand/` — "light" SVG = dark text (beyaz bg için), "dark" SVG = light text (koyu bg için)
+- **DB admin scripts:** `scripts/` klasöründe `.ts` dosyası + `npx tsx scripts/dosya.ts` kullan; `npx tsx -e "..."` CJS top-level await hatası verir
+- **Bing Webmaster:** doğrulandı; sitemap gönderildi
+- **Google Search Console:** henüz yapılmadı — DNS TXT kaydı gerekiyor
+
+## Sonraki Adımlar (v1.1)
+- Pilot Mode (automated apply to customer sites) — Opus design pass required first
+- Payment provider integration (iyzico/PayTR — agreements pending)
 - Stripe entegrasyonu
 - Dashboard'da "Rapor Oluştur" butonu (isteğe bağlı, crawl sonrası zaten otomatik)
