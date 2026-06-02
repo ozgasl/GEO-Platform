@@ -1,5 +1,6 @@
-import { Document, Page, View, Text, StyleSheet, Font } from '@react-pdf/renderer'
+import { Document, Page, View, Text, StyleSheet, Font, Image } from '@react-pdf/renderer'
 import React from 'react'
+import { OBSEY_LOGO } from './logo-data'
 
 const BLUE = '#2563EB'
 
@@ -18,7 +19,8 @@ Font.register({
 })
 
 const styles = StyleSheet.create({
-  page: { fontFamily: 'NotoSans', fontSize: 10, color: '#111827', padding: 40 },
+  page: { fontFamily: 'NotoSans', fontSize: 10, color: '#111827', padding: 40, paddingBottom: 54 },
+  brandLogo: { position: 'absolute', top: 14, right: 40, width: 64 },
   header: { backgroundColor: BLUE, padding: '16 24', marginBottom: 20, borderRadius: 4 },
   headerTitle: { color: 'white', fontSize: 18, fontFamily: 'NotoSans', fontWeight: 'bold' as const },
   headerSub: { color: '#BFDBFE', fontSize: 10, marginTop: 4 },
@@ -51,10 +53,10 @@ const styles = StyleSheet.create({
   statsValue: { fontSize: 9, fontFamily: 'NotoSans', fontWeight: 'bold' as const, textAlign: 'right' },
   techRecommendation: { fontSize: 8, color: '#6B7280', marginLeft: 8, marginBottom: 4, lineHeight: 1.4 },
   findingRow: { flexDirection: 'row', padding: '5 8', borderBottomWidth: 1, borderBottomColor: '#F3F4F6', gap: 6, alignItems: 'flex-start' },
-  findingTitle: { flex: 1, fontSize: 9, color: '#111827' },
+  findingTitle: { fontSize: 9, color: '#111827' },
   findingStatus: { fontSize: 8, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 2, fontFamily: 'NotoSans', fontWeight: 'bold' as const },
   findingDesc: { fontSize: 8, color: '#6B7280', marginTop: 2 },
-  codeBox: { fontSize: 8, color: '#1E3A8A', backgroundColor: '#F8FAFC', padding: '6 8', borderRadius: 2, fontFamily: 'Courier', lineHeight: 1.4 },
+  codeBox: { fontSize: 8, color: '#1E3A8A', backgroundColor: '#F8FAFC', padding: '6 8', borderRadius: 2, fontFamily: 'NotoSans', lineHeight: 1.4 },
   compRow: { flexDirection: 'row', padding: '5 8', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   compLabel: { flex: 2, fontSize: 9, color: '#6B7280' },
   compPrev: { flex: 1, fontSize: 9, textAlign: 'right' },
@@ -124,12 +126,18 @@ function TechScoresSection({ techScores }: { techScores: ActionPlanPdfProps['tec
   )
 }
 
+// Obsey logosu — her sayfanın sağ üstünde (fixed). Üst kenar boşluğu beyaz olduğu için
+// koyu-metinli (light) wordmark kullanılır.
+function BrandLogo() {
+  return <Image src={OBSEY_LOGO} fixed style={styles.brandLogo} />
+}
+
 function PageFooter({ generatedAt }: { generatedAt: Date }) {
   return (
     <View style={styles.footer} fixed>
       <Text style={styles.footerText}>Obsey tarafından oluşturulmuştur</Text>
       <Text style={styles.footerText}>
-        {generatedAt.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
+        {generatedAt.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul' })}
         {'  '}
         <Text render={({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) => `${pageNumber} / ${totalPages}`} />
       </Text>
@@ -163,6 +171,7 @@ export function ActionPlanPdf(props: ActionPlanPdfProps) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        <BrandLogo />
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>GEO Aksiyon Plan&#305;</Text>
@@ -181,7 +190,7 @@ export function ActionPlanPdf(props: ActionPlanPdfProps) {
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Olu&#351;turuldu</Text>
-            <Text style={styles.infoValue}>{generatedAt.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}</Text>
+            <Text style={styles.infoValue}>{generatedAt.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul' })}</Text>
           </View>
           <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
             <Text style={styles.infoLabel}>Bekleyen &#304;yile&#351;tirme</Text>
@@ -277,6 +286,7 @@ export function ReportPdf(props: ReportPdfProps) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        <BrandLogo />
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>GEO Raporu</Text>
@@ -299,7 +309,7 @@ export function ReportPdf(props: ReportPdfProps) {
           </View>
           <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
             <Text style={styles.infoLabel}>Olu&#351;turuldu</Text>
-            <Text style={styles.infoValue}>{generatedAt.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}</Text>
+            <Text style={styles.infoValue}>{generatedAt.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul' })}</Text>
           </View>
         </View>
 

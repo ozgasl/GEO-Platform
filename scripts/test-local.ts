@@ -25,7 +25,7 @@ import { revertAction } from '../lib/actions/revert'
 import { encryptSiteId, decryptToken, generateSnippet } from '../lib/monitoring/snippet'
 import { detectBot, recordVisit } from '../lib/monitoring/tracker'
 import { calculateGeoScore } from '../lib/reports/score'
-import { isSitemapIncomplete, isCrawlDegenerate, isThrottledOrUnknownStatus, assessCrawlConfidence, computeTechnicalScores } from '../lib/analyzer/quality'
+import { isSitemapIncomplete, isCrawlDegenerate, isThrottledOrUnknownStatus, assessCrawlConfidence, computeTechnicalScores, detectAiBotBlock } from '../lib/analyzer/quality'
 import type { CrawlHealth } from '../lib/types'
 import { generateReport } from '../lib/reports/generator'
 import { functions } from '../lib/inngest/functions'
@@ -845,6 +845,19 @@ async function main() {
   const okWithBlip = assessCrawlConfidence(ch({ sitemapStatus: 429 }), 10)
   assert(okWithBlip.level === 'OK' && okWithBlip.probeUnknown.sitemap === true && okWithBlip.probeUnknown.llms === false,
     'Tek probe blip: level OK ama o probe panelde "unknown" işaretli')
+
+  // 13c2: AI bot 403 engeli (Cloudflare/WAF) — blocked algılama + CRITICAL bulgu
+  const blockedConf = assessCrawlConfidence(ch({ homepageStatus: 403, robotsStatus: 403, sitemapStatus: 403, llmsStatus: 403 }), 0)
+  assert(blockedConf.level === 'FAILED' && blockedConf.blocked === true, '403 ana sayfa / 0 sayfa → FAILED + blocked:true')
+  assert(!!blockedConf.reason && blockedConf.reason.includes('403') && blockedConf.reason.includes('engelliyor'),
+    'blocked reason 403 + "engelliyor" içeriyor (yeniden dene mesajı DEĞİL)')
+  assert(assessCrawlConfidence(ch(), 8).blocked === false, 'Temiz tarama → blocked:false')
+  // Tek korumalı probe 403 (sayfalar açık) → engel SAYILMAZ (yanlış pozitif yok)
+  assert(assessCrawlConfidence(ch({ sitemapStatus: 403 }), 8).blocked === false, 'Yalnızca sitemap 403 + sayfalar açık → blocked:false')
+  const block = detectAiBotBlock(ch({ homepageStatus: 403 }), 'snap-x')
+  assert(block !== null && block.severity === 'CRITICAL' && block.category === 'ROBOTS', 'detectAiBotBlock: 403 → CRITICAL ROBOTS issue')
+  assert((block?.title ?? '').includes('engelliyor'), 'detectAiBotBlock: başlık "engelliyor" içeriyor')
+  assert(detectAiBotBlock(ch(), 'snap-x') === null, 'detectAiBotBlock: temiz crawl → null')
 
   // 13d: computeTechnicalScores — throttled probe "F/eksik" yerine unknown
   const tsThrottled = computeTechnicalScores({

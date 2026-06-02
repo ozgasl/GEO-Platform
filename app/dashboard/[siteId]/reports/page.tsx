@@ -102,7 +102,7 @@ export default async function ReportsPage({ params }: { params: { siteId: string
                 <p className="text-xs text-gray-400 mt-2">
                   {new Date(report.generatedAt).toLocaleString('tr-TR', {
                     day: 'numeric', month: 'long', year: 'numeric',
-                    hour: '2-digit', minute: '2-digit',
+                    hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul',
                   })}
                 </p>
               </div>

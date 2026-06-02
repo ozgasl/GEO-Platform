@@ -46,7 +46,7 @@ function buildEmailHtml(report: ReportSummary, appUrl: string, locale: string): 
           ${t('email.eyebrow', locale)}
         </span>
         <h1 style="margin:8px 0 4px;font-size:22px;color:#111827;">${t('email.heading', locale)}</h1>
-        <p style="margin:0;font-size:14px;color:#6b7280;">${new Date(report.crawledAt as string).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' })}</p>
+        <p style="margin:0;font-size:14px;color:#6b7280;">${new Date(report.crawledAt as string).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric', timeZone: 'Europe/Istanbul' })}</p>
       </div>
 
       <!-- Skor -->

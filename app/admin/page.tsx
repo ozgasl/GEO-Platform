@@ -93,7 +93,7 @@ export default async function AdminPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-600 text-center">{u._count.sites}</td>
                   <td className="px-4 py-3 text-gray-500">
-                    {u.createdAt.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {u.createdAt.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Istanbul' })}
                   </td>
                   <td className="px-4 py-3">
                     <form action={`/api/admin/users/${u.id}/plan`} method="POST" className="flex items-center gap-2">

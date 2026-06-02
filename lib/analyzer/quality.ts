@@ -1,5 +1,5 @@
 import { t } from '@/lib/i18n'
-import type { CrawlHealth } from '@/lib/types'
+import type { CrawlHealth, IssueInput } from '@/lib/types'
 
 export interface QualityScore {
   score: number
@@ -57,7 +57,20 @@ export interface CrawlConfidence {
   probeUnknown: { llms: boolean; robots: boolean; sitemap: boolean }
   crawledPages: number
   discoveredPages: number | null
+  // Site AI bot UA'sını (GPTBot) HTTP 403 ile engelliyor (WAF/Cloudflare) — geçici değil.
+  blocked: boolean
   reason: string | null // kısa TR banner metni (level !== OK iken)
+}
+
+/**
+ * AI bot UA'sı sayfa erişiminde 403 ile engellendi mi? Ana sayfa 403 VEYA sayfa taramalarında
+ * 403 = WAF/Cloudflare UA engeli. (Yalnızca korumalı tek bir probe yolu 403 dönerse — sayfalar
+ * açıkken — bunu engel saymayız, yanlış pozitif olmasın.)
+ */
+function isAiBotBlocked(crawl: CrawlHealth | null | undefined): boolean {
+  if (!crawl) return false
+  if (crawl.homepageStatus === 403) return true
+  return crawl.failures?.some(f => f.status === 403) ?? false
 }
 
 /**
@@ -75,6 +88,7 @@ export function assessCrawlConfidence(
     sitemap: !!crawl && isThrottledOrUnknownStatus(crawl.sitemapStatus),
   }
   const discoveredPages = crawl?.discoveredCount ?? null
+  const blocked = isAiBotBlocked(crawl)
 
   if (pageCount <= 0) {
     return {
@@ -82,7 +96,10 @@ export function assessCrawlConfidence(
       probeUnknown,
       crawledPages: 0,
       discoveredPages,
-      reason: 'Tarama tamamlanamadı — siteye erişilemedi (site geçici olarak erişimi sınırlamış olabilir).',
+      blocked,
+      reason: blocked
+        ? "Tarama tamamlanamadı — site AI bot'larını (GPTBot) engelliyor (HTTP 403). Muhtemelen bir WAF/Cloudflare bot kuralı; bu geçici bir hız sınırı DEĞİL, yeniden denemek çözmez."
+        : 'Tarama tamamlanamadı — siteye erişilemedi (site geçici olarak erişimi sınırlamış olabilir).',
     }
   }
 
@@ -102,11 +119,37 @@ export function assessCrawlConfidence(
       probeUnknown,
       crawledPages: pageCount,
       discoveredPages,
-      reason: `Kısmi tarama — site erişimi sınırladı (ör. hız sınırı). ${pageCount}/${denom} sayfa tarandı; bazı teknik kontroller tamamlanamadı. Skor güvenilir değil.`,
+      blocked,
+      reason: blocked
+        ? `Kısmi tarama — site bazı isteklerde AI bot'larını (GPTBot) engelledi (HTTP 403, WAF/Cloudflare olabilir). ${pageCount}/${denom} sayfa tarandı; skor güvenilir değil.`
+        : `Kısmi tarama — site erişimi sınırladı (ör. hız sınırı). ${pageCount}/${denom} sayfa tarandı; bazı teknik kontroller tamamlanamadı. Skor güvenilir değil.`,
     }
   }
 
-  return { level: 'OK', probeUnknown, crawledPages: pageCount, discoveredPages, reason: null }
+  return { level: 'OK', probeUnknown, crawledPages: pageCount, discoveredPages, blocked, reason: null }
+}
+
+/**
+ * Site AI bot UA'sını 403 ile engelliyorsa CRITICAL bir GEO bulgusu döndürür.
+ * Tarama 0 sayfa ile başarısız olsa bile pipeline bunu kuyruğa ekler (analiz atlanır).
+ */
+export function detectAiBotBlock(crawl: CrawlHealth | null | undefined, snapshotId: string): IssueInput | null {
+  if (!isAiBotBlocked(crawl)) return null
+  return {
+    snapshotId,
+    severity: 'CRITICAL',
+    category: 'ROBOTS',
+    title: 'Site AI botlarını engelliyor (HTTP 403)',
+    description:
+      'Siteniz GPTBot gibi AI tarayıcılara HTTP 403 (erişim engellendi) döndürüyor — büyük olasılıkla bir WAF/Cloudflare bot yönetimi kuralı. AI motorları sitenizi tarayamıyor.',
+    impact:
+      'AI arama motorları (ChatGPT, Claude, Perplexity) sitenizi okuyamaz ve kaynak gösteremez. Bu, AI görünürlüğü için en kritik engeldir — robots.txt veya içerik iyileştirmeleri bu engel kalkmadan işe yaramaz.',
+    actionType: 'MANUAL_REQUIRED',
+    actionPayload: {
+      instruction:
+        "WAF/Cloudflare bot yönetiminde şu user-agent'lara erişim izni verin: GPTBot, ClaudeBot, PerplexityBot, OAI-SearchBot, Google-Extended. (Cloudflare: Security → Bots veya WAF custom rules → bu UA'ları allow listesine ekleyin.)",
+    },
+  }
 }
 
 function toGrade(score: number): QualityScore['grade'] {

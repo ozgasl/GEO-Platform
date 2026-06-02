@@ -64,16 +64,15 @@ export async function generateReport(siteId: string, triggerType: 'MANUAL' | 'WE
     const lowConfSummary = confidence.reason ??
       'Tarama güvenilir biçimde tamamlanamadı; sonuçlar eksik olabilir.'
 
-    const pendingForPartial = failed
-      ? []
-      : snapshot.issues
-          .filter(i => i.status === 'PENDING' || i.status === 'APPLIED')
-          .sort((a, b) => {
-            const order = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
-            return (order[a.severity as keyof typeof order] ?? 4) - (order[b.severity as keyof typeof order] ?? 4)
-          })
-          .slice(0, 5)
-          .map(i => ({ severity: i.severity, category: i.category, title: i.title, description: i.description }))
+    // FAILED'da bile bulunan gerçek issue'ları (ör. "AI botlarını engelliyor" CRITICAL) göster.
+    const pendingForReport = snapshot.issues
+      .filter(i => i.status === 'PENDING' || i.status === 'APPLIED')
+      .sort((a, b) => {
+        const order = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
+        return (order[a.severity as keyof typeof order] ?? 4) - (order[b.severity as keyof typeof order] ?? 4)
+      })
+      .slice(0, 5)
+      .map(i => ({ severity: i.severity, category: i.category, title: i.title, description: i.description }))
 
     const lowConfReport = await db.report.create({
       data: {
@@ -101,7 +100,7 @@ export async function generateReport(siteId: string, triggerType: 'MANUAL' | 'WE
       summary: lowConfSummary,
       confidence: confidence.level,
       crawlFailed: failed,
-      topIssues: pendingForPartial,
+      topIssues: pendingForReport,
       breakdown: {},
       crawledAt: snapshot.crawledAt,
       pagesAnalyzed: crawledPageCount,

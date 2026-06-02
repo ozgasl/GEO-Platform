@@ -284,7 +284,7 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
               </div>
               <p className="text-xs text-gray-400 mt-3">
                 Son tarama: {new Date(snapshot.crawledAt).toLocaleString('tr-TR', {
-                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul',
                 })}
               </p>
             </div>

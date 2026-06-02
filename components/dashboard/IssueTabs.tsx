@@ -56,7 +56,7 @@ function CompletedIssueItem({ issue, siteId }: { issue: Issue; siteId: string })
 
   const appliedDate = action?.appliedAt
     ? new Date(action.appliedAt).toLocaleString('tr-TR', {
-        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul',
       })
     : null
 

@@ -140,7 +140,7 @@ export default async function DashboardPage() {
 
                 {site.lastCrawledAt && (
                   <p className="text-xs text-gray-400 mt-3">
-                    Son tarama: {new Date(site.lastCrawledAt).toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                    Son tarama: {new Date(site.lastCrawledAt).toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' })}
                   </p>
                 )}
               </Link>
