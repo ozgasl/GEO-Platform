@@ -91,7 +91,7 @@ const STATUS_TR: Record<string, string> = {
 
 function TechScoresSection({ techScores }: { techScores: ActionPlanPdfProps['techScores'] }) {
   if (!techScores || techScores.length === 0) return null
-  const withRecs = techScores.filter(s => s.recommendation)
+  const withRecs = techScores.filter(s => s.recommendation && !s.unknown)
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Teknik Durum</Text>
@@ -99,8 +99,17 @@ function TechScoresSection({ techScores }: { techScores: ActionPlanPdfProps['tec
         {techScores.map((s, i) => (
           <View key={i} style={styles.techRow}>
             <Text style={styles.techLabel}>{s.label}</Text>
-            <Text style={[styles.techGrade, { color: GRADE_COLOR[s.grade] ?? '#374151' }]}>{s.grade}</Text>
-            <Text style={styles.techScore}>{s.score}/100</Text>
+            {s.unknown ? (
+              <>
+                <Text style={[styles.techGrade, { color: '#9CA3AF' }]}>—</Text>
+                <Text style={styles.techScore}>Bilinmiyor</Text>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.techGrade, { color: GRADE_COLOR[s.grade] ?? '#374151' }]}>{s.grade}</Text>
+                <Text style={styles.techScore}>{s.score}/100</Text>
+              </>
+            )}
           </View>
         ))}
       </View>
@@ -137,7 +146,7 @@ export interface ActionPlanPdfProps {
   generatedAt: Date
   summary: string
   pendingCount: number
-  techScores: Array<{ label: string; grade: string; score: number; recommendation?: string }>
+  techScores: Array<{ label: string; grade: string; score: number; recommendation?: string; unknown?: boolean }>
   issues: Array<{
     severity: string
     category: string
@@ -232,7 +241,7 @@ export interface ReportPdfProps {
   triggerType: string
   generatedAt: Date
   summary: string
-  techScores: Array<{ label: string; grade: string; score: number; recommendation?: string }>
+  techScores: Array<{ label: string; grade: string; score: number; recommendation?: string; unknown?: boolean }>
   llmsTxtContent?: string | null
   stats: {
     issuesFound: number

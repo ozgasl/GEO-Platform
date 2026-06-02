@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { calculateGeoScore } from './score'
-import { isCrawlDegenerate } from '@/lib/analyzer/quality'
+import { assessCrawlConfidence, type CrawlConfidenceLevel } from '@/lib/analyzer/quality'
 import type { SnapshotData, PageSnapshot, CrawlHealth } from '@/lib/types'
 
 function getISOWeek(date: Date): number {
@@ -18,6 +18,7 @@ export interface ReportSummary {
   score: number | null
   grade: string | null
   summary: string
+  confidence: CrawlConfidenceLevel
   crawlFailed?: boolean
   topIssues: Array<{
     severity: string
@@ -51,48 +52,61 @@ export async function generateReport(siteId: string, triggerType: 'MANUAL' | 'WE
   const weekNum = getISOWeek(now)
   const period = `${now.getFullYear()}-W${String(weekNum).padStart(2, '0')}`
 
-  // --- Tarama başarısız (degenerate) guard ---
-  // Ana sayfa 2xx alınamadı / hiç sayfa yok → skor üretme, sahte düşük not gösterme.
+  // --- Tek güven sinyali: tüm yüzeylerin okuduğu assessCrawlConfidence ---
+  // FAILED (0 sayfa) ve PARTIAL (kısmi/throttle) için skor ÜRETME — sahte düşük/yüksek not gösterme.
   const crawl = (snapshot.technicalDetails as { crawl?: CrawlHealth } | null)?.crawl ?? null
   const crawledPageCount = (snapshot.pages as unknown as unknown[]).length
-  if (isCrawlDegenerate(crawl?.homepageStatus, crawledPageCount)) {
-    const statusPart = crawl?.homepageStatus ? ` (HTTP ${crawl.homepageStatus})` : ''
-    const failSummary =
-      `Tarama tamamlanamadı — siteye erişilemedi${statusPart}. ` +
-      `Site geçici olarak tarayıcı erişimini sınırlamış olabilir (ör. hız sınırı / 429). ` +
-      `Lütfen birkaç dakika sonra yeniden tarayın.`
+  const confidence = assessCrawlConfidence(crawl, crawledPageCount)
 
-    const failReport = await db.report.create({
+  if (confidence.level !== 'OK') {
+    const failed = confidence.level === 'FAILED'
+    // FAILED: hiç sayfa yok. PARTIAL: kısmi tarama — varsa bulunan gerçek issue'ları rapora dâhil et.
+    const lowConfSummary = confidence.reason ??
+      'Tarama güvenilir biçimde tamamlanamadı; sonuçlar eksik olabilir.'
+
+    const pendingForPartial = failed
+      ? []
+      : snapshot.issues
+          .filter(i => i.status === 'PENDING' || i.status === 'APPLIED')
+          .sort((a, b) => {
+            const order = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
+            return (order[a.severity as keyof typeof order] ?? 4) - (order[b.severity as keyof typeof order] ?? 4)
+          })
+          .slice(0, 5)
+          .map(i => ({ severity: i.severity, category: i.category, title: i.title, description: i.description }))
+
+    const lowConfReport = await db.report.create({
       data: {
         siteId,
         period,
-        summary: `[—] ${failSummary}`,
+        summary: `[—] ${lowConfSummary}`,
         triggerType,
         snapshotId: snapshot.id,
         issuesFound: snapshot.issues.length,
-        issuesFixed: 0,
+        issuesFixed: snapshot.issues.filter(i => i.status === 'APPLIED').length,
         aiCrawlerVisits: 0,
         llmsTxtUpdated: false,
-        score: null,
+        score: null,   // güvenilir değil — 85/B veya 37/F ASLA
         grade: null,
       },
     })
 
     return {
-      reportId: failReport.id,
+      reportId: lowConfReport.id,
       siteId,
       snapshotId: snapshot.id,
       period,
       score: null,
       grade: null,
-      summary: failSummary,
-      crawlFailed: true,
-      topIssues: [],
+      summary: lowConfSummary,
+      confidence: confidence.level,
+      crawlFailed: failed,
+      topIssues: pendingForPartial,
       breakdown: {},
       crawledAt: snapshot.crawledAt,
       pagesAnalyzed: crawledPageCount,
       issuesFound: snapshot.issues.length,
-      issuesFixed: 0,
+      issuesFixed: snapshot.issues.filter(i => i.status === 'APPLIED').length,
       aiCrawlerVisits: 0,
     }
   }
@@ -172,6 +186,7 @@ export async function generateReport(siteId: string, triggerType: 'MANUAL' | 'WE
     score: geoScore.total,
     grade: geoScore.grade,
     summary: geoScore.summary,
+    confidence: 'OK',
     topIssues,
     breakdown: geoScore.breakdown as unknown as Record<string, number>,
     crawledAt: snapshot.crawledAt,

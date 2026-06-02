@@ -1,4 +1,5 @@
 import { t } from '@/lib/i18n'
+import type { CrawlHealth } from '@/lib/types'
 
 export interface QualityScore {
   score: number
@@ -6,6 +7,9 @@ export interface QualityScore {
   label: string
   detail: string
   recommendation?: string
+  // Probe throttle/timeout nedeniyle belirlenemedi (429/5xx/ağ hatası — kesin 404 değil).
+  // true ise panel/tablo "Bilinmiyor — tarama eksik" gösterir, F/eksik DEĞİL.
+  unknown?: boolean
 }
 
 const AI_BOTS = ['GPTBot', 'ClaudeBot', 'PerplexityBot', 'OAI-SearchBot', 'Google-Extended']
@@ -42,6 +46,67 @@ export function isCrawlDegenerate(homepageStatus: number | null | undefined, pag
 export function isThrottledOrUnknownStatus(status: number | null | undefined): boolean {
   if (status == null) return true // ağ hatası → bilinmiyor
   return status === 429 || status >= 500
+}
+
+export type CrawlConfidenceLevel = 'OK' | 'PARTIAL' | 'FAILED'
+
+export interface CrawlConfidence {
+  level: CrawlConfidenceLevel
+  // Panel/tablo gösterimi için — her probe ayrı; genel level'dan BAĞIMSIZ.
+  // (Tek probe blip + yüksek kapsama → level OK kalır ama o probe satırı "bilinmiyor" görünür.)
+  probeUnknown: { llms: boolean; robots: boolean; sitemap: boolean }
+  crawledPages: number
+  discoveredPages: number | null
+  reason: string | null // kısa TR banner metni (level !== OK iken)
+}
+
+/**
+ * Taramanın güven seviyesi — TÜM yüzeylerin (skor kartı, panel, rapor) okuduğu TEK sinyal.
+ * FAILED: hiç sayfa yok. PARTIAL: ≥2 probe bilinmiyor VEYA ana sayfa güvenilmez VEYA sayfaların
+ * >%50'si başarısız. Aksi hâlde OK. Tek probe blip + iyi kapsama → OK (panelde o probe yine "bilinmiyor").
+ */
+export function assessCrawlConfidence(
+  crawl: CrawlHealth | null | undefined,
+  pageCount: number
+): CrawlConfidence {
+  const probeUnknown = {
+    llms: !!crawl && isThrottledOrUnknownStatus(crawl.llmsStatus),
+    robots: !!crawl && isThrottledOrUnknownStatus(crawl.robotsStatus),
+    sitemap: !!crawl && isThrottledOrUnknownStatus(crawl.sitemapStatus),
+  }
+  const discoveredPages = crawl?.discoveredCount ?? null
+
+  if (pageCount <= 0) {
+    return {
+      level: 'FAILED',
+      probeUnknown,
+      crawledPages: 0,
+      discoveredPages,
+      reason: 'Tarama tamamlanamadı — siteye erişilemedi (site geçici olarak erişimi sınırlamış olabilir).',
+    }
+  }
+
+  const unknownProbeCount = Number(probeUnknown.llms) + Number(probeUnknown.robots) + Number(probeUnknown.sitemap)
+  const homepageUnreliable =
+    !!crawl && crawl.homepageStatus != null && (crawl.homepageStatus < 200 || crawl.homepageStatus >= 300)
+  const failureCount = crawl?.failures?.length ?? 0
+  const attempted = pageCount + failureCount
+  const failRatio = attempted > 0 ? failureCount / attempted : 0
+
+  const partial = unknownProbeCount >= 2 || homepageUnreliable || failRatio > 0.5
+
+  if (partial) {
+    const denom = discoveredPages ?? attempted
+    return {
+      level: 'PARTIAL',
+      probeUnknown,
+      crawledPages: pageCount,
+      discoveredPages,
+      reason: `Kısmi tarama — site erişimi sınırladı (ör. hız sınırı). ${pageCount}/${denom} sayfa tarandı; bazı teknik kontroller tamamlanamadı. Skor güvenilir değil.`,
+    }
+  }
+
+  return { level: 'OK', probeUnknown, crawledPages: pageCount, discoveredPages, reason: null }
 }
 
 function toGrade(score: number): QualityScore['grade'] {
@@ -244,6 +309,17 @@ export function scoreHttps(httpsEnabled: boolean, locale: string = 'tr'): Qualit
   return { score: 100, grade: 'A', label: t('quality.https.ok.label', locale), detail: t('quality.https.ok.detail', locale) }
 }
 
+/** Probe throttle/timeout nedeniyle belirlenemeyen kontrol için "Bilinmiyor" skoru. */
+function unknownScore(): QualityScore {
+  return {
+    score: 0,            // unknown=true iken render katmanı görmezden gelir
+    grade: 'F',          // unknown=true iken render katmanı görmezden gelir
+    unknown: true,
+    label: 'Bilinmiyor',
+    detail: 'Tarama bu kontrolü tamamlayamadı — site erişimi sınırladı (ör. hız sınırı).',
+  }
+}
+
 /** Tüm teknik öğeler için skorları tek çağrıda hesaplar. */
 export function computeTechnicalScores(snapshot: {
   hasLlmsTxt: boolean
@@ -256,15 +332,24 @@ export function computeTechnicalScores(snapshot: {
     robotsContent?: string | null
     allowedBots?: string[]
     sitemapUrlCount?: number | null
+    crawl?: CrawlHealth | null
   } | null
   crawledPageCount?: number
 }, locale: string = 'tr') {
   const td = snapshot.technicalDetails ?? {}
+  // Probe throttle edildiyse (429/5xx/ağ hatası) "F/eksik" yerine "Bilinmiyor" göster.
+  // crawl yoksa (legacy snapshot) eski davranış korunur. Kesin 404 → unknown DEĞİL → normal skor.
+  const crawl = td.crawl ?? null
+  const u = {
+    llms: !!crawl && isThrottledOrUnknownStatus(crawl.llmsStatus),
+    robots: !!crawl && isThrottledOrUnknownStatus(crawl.robotsStatus),
+    sitemap: !!crawl && isThrottledOrUnknownStatus(crawl.sitemapStatus),
+  }
   return {
-    llmsTxt: scoreLlmsTxt(snapshot.llmsTxtContent, snapshot.hasLlmsTxt, locale),
-    robotsTxt: scoreRobotsTxt(snapshot.hasRobotsTxt, snapshot.robotsBlocksAI, td.robotsContent, locale),
-    aiBotAccess: scoreAiBotAccess(snapshot.robotsBlocksAI, snapshot.hasRobotsTxt, td.allowedBots, locale),
-    sitemap: scoreSitemap(snapshot.hasSitemap, td.sitemapUrlCount, snapshot.crawledPageCount, locale),
+    llmsTxt: u.llms ? unknownScore() : scoreLlmsTxt(snapshot.llmsTxtContent, snapshot.hasLlmsTxt, locale),
+    robotsTxt: u.robots ? unknownScore() : scoreRobotsTxt(snapshot.hasRobotsTxt, snapshot.robotsBlocksAI, td.robotsContent, locale),
+    aiBotAccess: u.robots ? unknownScore() : scoreAiBotAccess(snapshot.robotsBlocksAI, snapshot.hasRobotsTxt, td.allowedBots, locale),
+    sitemap: u.sitemap ? unknownScore() : scoreSitemap(snapshot.hasSitemap, td.sitemapUrlCount, snapshot.crawledPageCount, locale),
     https: scoreHttps(snapshot.httpsEnabled, locale),
   }
 }

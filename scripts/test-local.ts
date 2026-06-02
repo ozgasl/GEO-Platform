@@ -25,7 +25,8 @@ import { revertAction } from '../lib/actions/revert'
 import { encryptSiteId, decryptToken, generateSnippet } from '../lib/monitoring/snippet'
 import { detectBot, recordVisit } from '../lib/monitoring/tracker'
 import { calculateGeoScore } from '../lib/reports/score'
-import { isSitemapIncomplete, isCrawlDegenerate, isThrottledOrUnknownStatus } from '../lib/analyzer/quality'
+import { isSitemapIncomplete, isCrawlDegenerate, isThrottledOrUnknownStatus, assessCrawlConfidence, computeTechnicalScores } from '../lib/analyzer/quality'
+import type { CrawlHealth } from '../lib/types'
 import { generateReport } from '../lib/reports/generator'
 import { functions } from '../lib/inngest/functions'
 import type { SnapshotData, PageSnapshot, IssueInput } from '../lib/types'
@@ -799,6 +800,7 @@ async function main() {
   })
   const failReport = await generateReport(failSite.id)
   assert(failReport.crawlFailed === true, 'generateReport: degenerate crawl → crawlFailed: true')
+  assert(failReport.confidence === 'FAILED', 'generateReport: degenerate crawl → confidence FAILED')
   assert(failReport.score === null, 'generateReport: degenerate crawl → score null (sahte F üretilmez)')
   assert(failReport.grade === null, 'generateReport: degenerate crawl → grade null')
   assert(failReport.summary.includes('Tarama tamamlanamadı'), 'generateReport: özet "Tarama tamamlanamadı" içeriyor')
@@ -811,6 +813,98 @@ async function main() {
   await db.site.delete({ where: { id: failSite.id } })
   await db.user.delete({ where: { id: failUser.id } })
   assert(true, 'Crawl Robustness test verisi temizlendi')
+
+  // BÖLÜM 13: Crawl Confidence — tek sinyal (OK / PARTIAL / FAILED)
+  console.log('\n' + bold('13. Crawl Confidence — assessCrawlConfidence / computeTechnicalScores unknown'))
+  console.log('─'.repeat(50))
+
+  const ch = (o: Partial<CrawlHealth> = {}): CrawlHealth => ({
+    homepageStatus: 200, robotsStatus: 200, sitemapStatus: 200, llmsStatus: 200,
+    throttled: false, discoveredCount: 50, failures: [], ...o,
+  })
+
+  // 13a: eşik matrisi (not 1)
+  assert(assessCrawlConfidence(ch({ robotsStatus: 429, sitemapStatus: 429, llmsStatus: 429 }), 1).level === 'PARTIAL',
+    '3 probe 429 / 1 sayfa → PARTIAL')
+  assert(assessCrawlConfidence(ch({ sitemapStatus: 429 }), 10).level === 'OK',
+    'Tek probe blip + 10 sayfa kapsama → OK (skor gösterilir)')
+  assert(assessCrawlConfidence(ch({ homepageStatus: 429 }), 2).level === 'PARTIAL',
+    'Ana sayfa non-2xx ama 2 sayfa var → PARTIAL (homepage güvenilmez)')
+  assert(assessCrawlConfidence(ch({ failures: [{ url: 'a', status: 0 }, { url: 'b', status: 0 }, { url: 'c', status: 0 }] }), 2).level === 'PARTIAL',
+    'Sayfaların >%50\'si başarısız (3 fail / 2 ok) → PARTIAL')
+  assert(assessCrawlConfidence(ch(), 8).level === 'OK', 'Temiz tarama / 8 sayfa → OK')
+  assert(assessCrawlConfidence(null, 3).level === 'OK', 'crawl health yok (legacy) / 3 sayfa → OK')
+  assert(assessCrawlConfidence(ch(), 0).level === 'FAILED', '0 sayfa → FAILED')
+
+  // 13b: yavaş ama sağlıklı site cezalandırılmaz (not 2)
+  const slowHealthy = assessCrawlConfidence(ch({ failures: [{ url: 'slow', status: 0 }] }), 10)
+  assert(slowHealthy.level === 'OK',
+    'Yavaş ama sağlıklı: 1 timeout (status 0) + 10 sayfa kapsama → OK (haksız PARTIAL değil)')
+
+  // 13c: per-probe unknown panel gösterimi (genel level\'dan bağımsız)
+  const okWithBlip = assessCrawlConfidence(ch({ sitemapStatus: 429 }), 10)
+  assert(okWithBlip.level === 'OK' && okWithBlip.probeUnknown.sitemap === true && okWithBlip.probeUnknown.llms === false,
+    'Tek probe blip: level OK ama o probe panelde "unknown" işaretli')
+
+  // 13d: computeTechnicalScores — throttled probe "F/eksik" yerine unknown
+  const tsThrottled = computeTechnicalScores({
+    hasLlmsTxt: false, llmsTxtContent: null, hasRobotsTxt: false, robotsBlocksAI: false,
+    hasSitemap: false, httpsEnabled: true,
+    technicalDetails: { allowedBots: [], crawl: ch({ sitemapStatus: 429, llmsStatus: 429, robotsStatus: 429 }) },
+    crawledPageCount: 1,
+  })
+  assert(tsThrottled.sitemap.unknown === true, 'computeTechnicalScores: sitemap probe 429 → unknown (F değil)')
+  assert(tsThrottled.llmsTxt.unknown === true, 'computeTechnicalScores: llms probe 429 → unknown')
+  assert(tsThrottled.https.unknown !== true && tsThrottled.https.grade === 'A', 'computeTechnicalScores: HTTPS probe-bağımsız → A kalır')
+
+  const tsClean404 = computeTechnicalScores({
+    hasLlmsTxt: false, llmsTxtContent: null, hasRobotsTxt: true, robotsBlocksAI: false,
+    hasSitemap: false, httpsEnabled: true,
+    technicalDetails: { allowedBots: [], crawl: ch({ sitemapStatus: 404, llmsStatus: 404 }) },
+    crawledPageCount: 5,
+  })
+  assert(tsClean404.sitemap.unknown !== true && tsClean404.sitemap.grade === 'F',
+    'computeTechnicalScores: sitemap 404 (kesin yok) → unknown DEĞİL, F kalır')
+
+  // 13e: generateReport PARTIAL — skor üretilmez, "85/iyi durumda" ASLA
+  const partUser = await db.user.create({ data: { email: 'partial_test@geo-platform.local', name: 'Partial Test' } })
+  const partSite = await db.site.create({
+    data: { userId: partUser.id, url: 'https://partial.example.com', name: '__test_partial__', mode: 'ADVISOR' },
+  })
+  const partSnapshot = await db.snapshot.create({
+    data: {
+      siteId: partSite.id,
+      hasLlmsTxt: false, llmsTxtContent: null,
+      hasRobotsTxt: false, robotsBlocksAI: false,
+      hasSitemap: false, httpsEnabled: true,
+      pages: [makePage({ url: 'https://partial.example.com/', jsonLdSchemas: [] })] as unknown as object[],
+      technicalDetails: { allowedBots: [], crawl: ch({ homepageStatus: 200, robotsStatus: 429, sitemapStatus: 429, llmsStatus: 429, throttled: true, discoveredCount: 50, failures: [{ url: 'x', status: 0 }, { url: 'y', status: 0 }, { url: 'z', status: 0 }] }) } as unknown as object,
+    },
+  })
+  // PARTIAL snapshot analiz edilir (homepage schema issue\'sı için)
+  await db.issue.create({
+    data: {
+      snapshotId: partSnapshot.id,
+      severity: 'HIGH', category: 'SCHEMA',
+      title: 'Ana sayfada Organization schema eksik', description: 'Test', impact: 'Test',
+      actionType: 'AUTO_FIX', status: 'PENDING',
+    },
+  })
+  const partReport = await generateReport(partSite.id)
+  assert(partReport.confidence === 'PARTIAL', 'generateReport: kısmi tarama → confidence PARTIAL')
+  assert(partReport.score === null && partReport.grade === null, 'generateReport: PARTIAL → score/grade null (85/B ASLA)')
+  assert(partReport.summary.includes('Kısmi tarama'), 'generateReport: PARTIAL özeti "Kısmi tarama" içeriyor')
+  assert(!partReport.summary.includes('iyi durumda'), 'generateReport: PARTIAL özeti "iyi durumda" gibi sahte güven içermiyor')
+  assert(partReport.topIssues.length === 1, 'generateReport: PARTIAL yine de bulunan gerçek issue\'ları listeler')
+  const partDbReport = await db.report.findUnique({ where: { id: partReport.reportId } })
+  assert(partDbReport?.score === null, 'DB: PARTIAL report.score null kaydedildi')
+
+  await db.report.deleteMany({ where: { siteId: partSite.id } })
+  await db.issue.deleteMany({ where: { snapshot: { siteId: partSite.id } } })
+  await db.snapshot.deleteMany({ where: { siteId: partSite.id } })
+  await db.site.delete({ where: { id: partSite.id } })
+  await db.user.delete({ where: { id: partUser.id } })
+  assert(true, 'Crawl Confidence test verisi temizlendi')
 
   // SONUÇ
   console.log('\n' + '═'.repeat(50))

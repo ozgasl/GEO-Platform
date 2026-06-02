@@ -126,8 +126,8 @@ export const weeklyReportJob = inngest.createFunction(
 
       const result = await step.run(`report-${site.id}`, async () => {
         const report = await generateReport(site.id, 'WEEKLY')
-        // Tarama başarısızsa "skor yok" e-postası gönderme.
-        if (report.crawlFailed) return { sent: false }
+        // Sadece güvenilir (OK) taramalarda skorlu e-posta gönder; FAILED/PARTIAL atlanır.
+        if (report.confidence !== 'OK') return { sent: false }
         const emailResult = await sendReportEmail(
           report,
           site.user.email!,
@@ -173,8 +173,8 @@ export const generateReportJob = inngest.createFunction(
       })
     })
 
-    // Tarama başarısızsa (degenerate) skor/uyarı e-postalarını atla.
-    if (!report.crawlFailed && site.user.email && site.user.emailReports) {
+    // Sadece güvenilir (OK) taramalarda skor/uyarı e-postaları gönder; FAILED/PARTIAL atlanır.
+    if (report.confidence === 'OK' && site.user.email && site.user.emailReports) {
       await step.run('send-report-email', async () => {
         const emailResult = await sendReportEmail(report, site.user.email!, site.name, APP_URL)
         if (emailResult.sent) {
@@ -187,7 +187,7 @@ export const generateReportJob = inngest.createFunction(
       })
     }
 
-    if (!report.crawlFailed && report.score != null && site.user.email && site.user.emailAlerts) {
+    if (report.confidence === 'OK' && report.score != null && site.user.email && site.user.emailAlerts) {
       const currentScore = report.score
       await step.run('send-alert-email', async () => {
         const prevReport = await db.report.findFirst({

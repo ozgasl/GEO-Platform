@@ -72,12 +72,14 @@ function buildTechStatusTable(
   const lines: string[] = [
     `| ${t('report.tech.control', locale)} | ${t('report.tech.grade', locale)} | ${t('report.tech.score', locale)} |`,
     `|---------|-----|------|`,
-    ...rows.map(r => `| ${r.label} | ${GRADE_EMOJI[r.s.grade]} ${r.s.grade} | ${r.s.score}/100 |`),
+    ...rows.map(r => r.s.unknown
+      ? `| ${r.label} | ⚪ — | Bilinmiyor |`
+      : `| ${r.label} | ${GRADE_EMOJI[r.s.grade]} ${r.s.grade} | ${r.s.score}/100 |`),
     `| ${t('report.tech.pagesScanned', locale)} | — | ${pageCount} |`,
     ``,
   ]
 
-  const withRecs = rows.filter(r => r.s.recommendation)
+  const withRecs = rows.filter(r => r.s.recommendation && !r.s.unknown)
   if (withRecs.length > 0) {
     lines.push(`### ${t('report.tech.recommendationsHeading', locale)}`, ``)
     for (const { label, s } of withRecs) {
@@ -140,7 +142,7 @@ function buildActionPlan(
   // Teknik Durum önerilerini topla (score < 100 olan tüm maddeler)
   const techRecs = qualityScores
     ? Object.entries(qualityScores)
-        .filter(([, s]) => (s as QualityScore).recommendation)
+        .filter(([, s]) => (s as QualityScore).recommendation && !(s as QualityScore).unknown)
         .map(([, s]) => s as QualityScore)
     : []
 
@@ -381,6 +383,7 @@ export async function GET(
           robotsContent?: string | null
           allowedBots?: string[]
           sitemapUrlCount?: number | null
+          crawl?: import('@/lib/types').CrawlHealth | null
         } | null,
         crawledPageCount: pageCount,
       })
@@ -388,11 +391,11 @@ export async function GET(
 
   if (type === 'action-plan' && format === 'pdf') {
     const techScores = qualityScores ? [
-      { label: 'HTTPS',           grade: qualityScores.https.grade,        score: qualityScores.https.score,        recommendation: qualityScores.https.recommendation },
-      { label: 'llms.txt',        grade: qualityScores.llmsTxt.grade,      score: qualityScores.llmsTxt.score,      recommendation: qualityScores.llmsTxt.recommendation },
-      { label: 'robots.txt',      grade: qualityScores.robotsTxt.grade,    score: qualityScores.robotsTxt.score,    recommendation: qualityScores.robotsTxt.recommendation },
-      { label: 'AI Botlara İzin', grade: qualityScores.aiBotAccess.grade,  score: qualityScores.aiBotAccess.score,  recommendation: qualityScores.aiBotAccess.recommendation },
-      { label: 'Sitemap',         grade: qualityScores.sitemap.grade,      score: qualityScores.sitemap.score,      recommendation: qualityScores.sitemap.recommendation },
+      { label: 'HTTPS',           grade: qualityScores.https.grade,        score: qualityScores.https.score,        recommendation: qualityScores.https.recommendation,       unknown: qualityScores.https.unknown },
+      { label: 'llms.txt',        grade: qualityScores.llmsTxt.grade,      score: qualityScores.llmsTxt.score,      recommendation: qualityScores.llmsTxt.recommendation,     unknown: qualityScores.llmsTxt.unknown },
+      { label: 'robots.txt',      grade: qualityScores.robotsTxt.grade,    score: qualityScores.robotsTxt.score,    recommendation: qualityScores.robotsTxt.recommendation,   unknown: qualityScores.robotsTxt.unknown },
+      { label: 'AI Botlara İzin', grade: qualityScores.aiBotAccess.grade,  score: qualityScores.aiBotAccess.score,  recommendation: qualityScores.aiBotAccess.recommendation, unknown: qualityScores.aiBotAccess.unknown },
+      { label: 'Sitemap',         grade: qualityScores.sitemap.grade,      score: qualityScores.sitemap.score,      recommendation: qualityScores.sitemap.recommendation,     unknown: qualityScores.sitemap.unknown },
     ] : []
 
     const pendingIssues = issues.filter(i => i.status === 'PENDING')
@@ -447,11 +450,11 @@ export async function GET(
 
   if (format === 'pdf') {
     const techScores = qualityScores ? [
-      { label: 'HTTPS',           grade: qualityScores.https.grade,        score: qualityScores.https.score,        recommendation: qualityScores.https.recommendation },
-      { label: 'llms.txt',        grade: qualityScores.llmsTxt.grade,      score: qualityScores.llmsTxt.score,      recommendation: qualityScores.llmsTxt.recommendation },
-      { label: 'robots.txt',      grade: qualityScores.robotsTxt.grade,    score: qualityScores.robotsTxt.score,    recommendation: qualityScores.robotsTxt.recommendation },
-      { label: 'AI Botlara İzin', grade: qualityScores.aiBotAccess.grade,  score: qualityScores.aiBotAccess.score,  recommendation: qualityScores.aiBotAccess.recommendation },
-      { label: 'Sitemap',         grade: qualityScores.sitemap.grade,      score: qualityScores.sitemap.score,      recommendation: qualityScores.sitemap.recommendation },
+      { label: 'HTTPS',           grade: qualityScores.https.grade,        score: qualityScores.https.score,        recommendation: qualityScores.https.recommendation,       unknown: qualityScores.https.unknown },
+      { label: 'llms.txt',        grade: qualityScores.llmsTxt.grade,      score: qualityScores.llmsTxt.score,      recommendation: qualityScores.llmsTxt.recommendation,     unknown: qualityScores.llmsTxt.unknown },
+      { label: 'robots.txt',      grade: qualityScores.robotsTxt.grade,    score: qualityScores.robotsTxt.score,    recommendation: qualityScores.robotsTxt.recommendation,   unknown: qualityScores.robotsTxt.unknown },
+      { label: 'AI Botlara İzin', grade: qualityScores.aiBotAccess.grade,  score: qualityScores.aiBotAccess.score,  recommendation: qualityScores.aiBotAccess.recommendation, unknown: qualityScores.aiBotAccess.unknown },
+      { label: 'Sitemap',         grade: qualityScores.sitemap.grade,      score: qualityScores.sitemap.score,      recommendation: qualityScores.sitemap.recommendation,     unknown: qualityScores.sitemap.unknown },
     ] : []
 
     const pendingCount = issues.filter(i => i.status === 'PENDING').length

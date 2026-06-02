@@ -105,5 +105,7 @@ export interface CrawlHealth {
   sitemapStatus: number | null
   llmsStatus: number | null
   throttled: boolean
+  // Taranması hedeflenen sayfa sayısı (urlsToCrawl) — "1/50 tarandı" güven mesajı için
+  discoveredCount?: number
   failures: { url: string; status: number }[]
 }

@@ -672,8 +672,12 @@ export async function crawlSite(siteId: string): Promise<CrawlResult> {
         return await crawlPageWithContext(url, context)
       } catch (err) {
         const status = err instanceof CrawlStatusError ? err.status : 0
+        // Playwright goto timeout'u throw eder (status 0). Throttle eden site 429 yerine
+        // bağlantıyı askıya alabilir → timeout. Bunları da say, yoksa devre kesici açılmaz
+        // ve ~46 sayfa 15s'lik timeout'larla 4 dakika boşa harcanır.
+        const isTimeout = err instanceof Error && err.name === 'TimeoutError'
         failures.push({ url, status })
-        if (RETRYABLE_STATUS.has(status)) {
+        if (RETRYABLE_STATUS.has(status) || isTimeout) {
           throttleCount++
           if (throttleCount >= THROTTLE_CIRCUIT_THRESHOLD) circuitOpen = true
         }
@@ -700,6 +704,7 @@ export async function crawlSite(siteId: string): Promise<CrawlResult> {
     sitemapStatus: sitemapResult.status,
     llmsStatus: llmsResultRaw.status,
     throttled: circuitOpen || throttleCount > 0,
+    discoveredCount: urlsToCrawl.length,
     failures,
   }
 

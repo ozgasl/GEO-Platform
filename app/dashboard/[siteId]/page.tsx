@@ -8,8 +8,8 @@ import IssueTabs from '@/components/dashboard/IssueTabs'
 import SnippetPanel from '@/components/dashboard/SnippetPanel'
 import ModeToggle from '@/components/dashboard/ModeToggle'
 import ScanButton from '@/components/dashboard/ScanButton'
-import { computeTechnicalScores, type QualityScore } from '@/lib/analyzer/quality'
-import type { PageSnapshot } from '@/lib/types'
+import { computeTechnicalScores, assessCrawlConfidence, type QualityScore } from '@/lib/analyzer/quality'
+import type { PageSnapshot, CrawlHealth } from '@/lib/types'
 
 function brandName(nameOrUrl: string): string {
   try {
@@ -49,6 +49,24 @@ async function getSiteData(siteId: string, userId: string) {
 }
 
 function TechStatusScore({ score, label }: { score: QualityScore; label: string }) {
+  // Probe throttle/timeout nedeniyle belirlenemedi → "F/eksik" yerine nötr "Bilinmiyor".
+  if (score.unknown) {
+    return (
+      <details className="rounded-lg bg-gray-50 group">
+        <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer list-none select-none">
+          <span className="w-2 h-2 rounded-full flex-shrink-0 bg-gray-300" />
+          <span className="flex-1 text-sm text-gray-600">{label}</span>
+          <span className="text-xs font-semibold text-gray-500">—</span>
+          <span className="text-xs text-gray-400">Bilinmiyor</span>
+          <span className="text-xs ml-1 text-gray-400 opacity-50 group-open:rotate-180 transition-transform">▾</span>
+        </summary>
+        <div className="px-3 pb-3 pt-1 text-xs text-gray-500 opacity-90 leading-relaxed">
+          {score.detail}
+        </div>
+      </details>
+    )
+  }
+
   const dotColor = {
     A: 'bg-green-500', B: 'bg-green-400', C: 'bg-yellow-400', D: 'bg-orange-400', F: 'bg-red-500',
   }[score.grade]
@@ -121,6 +139,12 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
     ? calculateGeoScore(snapshotData, snapshot!.issues)
     : null
 
+  // Tek güven sinyali — skor kartı, panel ve banner hepsi bunu okur.
+  const crawlHealth = (snapshot?.technicalDetails as { crawl?: CrawlHealth } | null)?.crawl ?? null
+  const confidence = snapshot
+    ? assessCrawlConfidence(crawlHealth, (snapshot.pages as unknown[]).length)
+    : null
+
   const aiVisits = (snapshot?.aiCrawlerVisits ?? {}) as Record<string, number>
   const totalVisits = Object.values(aiVisits).reduce((s, v) => s + v, 0)
 
@@ -135,6 +159,7 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
       robotsContent?: string | null
       allowedBots?: string[]
       sitemapUrlCount?: number | null
+      crawl?: CrawlHealth | null
     } | null,
     crawledPageCount: (snapshot.pages as unknown[]).length,
   }) : null
@@ -174,12 +199,30 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
         </div>
       </div>
 
+      {/* Düşük güven / başarısız tarama bandı — skor kartı ve panelle aynı sinyali okur */}
+      {confidence && confidence.level !== 'OK' && (
+        <div className={`text-sm rounded-lg px-4 py-2.5 flex items-start gap-2 mb-4 border ${
+          confidence.level === 'FAILED'
+            ? 'bg-red-50 border-red-200 text-red-800'
+            : 'bg-amber-50 border-amber-200 text-amber-800'
+        }`}>
+          <span>{confidence.level === 'FAILED' ? '⛔' : '⚠️'}</span>
+          <span>{confidence.reason}</span>
+        </div>
+      )}
+
       {/* Stats row */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         {/* GEO Score */}
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500 mb-2">GEO Skoru</p>
-          {geoScore ? (
+          {!snapshot || !confidence ? (
+            <span className="text-sm text-gray-400">Veri yok</span>
+          ) : confidence.level === 'FAILED' ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full font-semibold ring-1 bg-red-50 text-red-700 ring-red-200 text-sm px-3 py-1.5">Tarama başarısız</span>
+          ) : confidence.level === 'PARTIAL' ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full font-semibold ring-1 bg-gray-100 text-gray-600 ring-gray-200 text-sm px-3 py-1.5" title="Site erişimi sınırladı; skor güvenilir değil.">Kısmi tarama</span>
+          ) : geoScore ? (
             <ScoreBadge score={geoScore.total} size="lg" />
           ) : (
             <span className="text-sm text-gray-400">Veri yok</span>
