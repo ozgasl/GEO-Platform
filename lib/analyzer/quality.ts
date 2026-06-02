@@ -24,6 +24,26 @@ export function isSitemapIncomplete(urlCount?: number | null, crawledPageCount?:
   return urlCount < crawledPageCount
 }
 
+/**
+ * Tarama "degenerate" (geçersiz) mi? — TEK kaynak.
+ * Ana sayfa 2xx ile alınamadıysa veya hiç sayfa taranamadıysa true.
+ * Böyle bir taramadan içerik/şema/teknik "eksik" sonucu çıkarmak yanıltıcıdır;
+ * rapor "tarama başarısız" olarak işaretlenir, sahte düşük skor üretilmez.
+ */
+export function isCrawlDegenerate(homepageStatus: number | null | undefined, pageCount: number): boolean {
+  // Tek ve sağlam sinyal: hiç içerik sayfası alınamadıysa tarama geçersizdir (ör. ana sayfa 429 →
+  // tek aday da düştü → 0 sayfa). Ana sayfa geçici 429 alıp BAŞKA sayfalar başarılıysa, kısmi ama
+  // dürüst bir rapor üretmek "tarama başarısız" demekten iyidir. homepageStatus teşhis için tutulur.
+  void homepageStatus
+  return pageCount <= 0
+}
+
+/** HTTP durumunun "throttle/bilinmiyor" (429/5xx/ağ hatası) olup olmadığı — kesin 404 değil. */
+export function isThrottledOrUnknownStatus(status: number | null | undefined): boolean {
+  if (status == null) return true // ağ hatası → bilinmiyor
+  return status === 429 || status >= 500
+}
+
 function toGrade(score: number): QualityScore['grade'] {
   if (score >= 90) return 'A'
   if (score >= 75) return 'B'

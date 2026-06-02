@@ -10,7 +10,7 @@
  */
 
 import { db } from '../lib/db'
-import { prioritizeUrls } from '../lib/crawler/index'
+import { prioritizeUrls, parseRetryAfter } from '../lib/crawler/index'
 import {
   checkRobotsTxt,
   checkLlmsTxt,
@@ -25,7 +25,7 @@ import { revertAction } from '../lib/actions/revert'
 import { encryptSiteId, decryptToken, generateSnippet } from '../lib/monitoring/snippet'
 import { detectBot, recordVisit } from '../lib/monitoring/tracker'
 import { calculateGeoScore } from '../lib/reports/score'
-import { isSitemapIncomplete } from '../lib/analyzer/quality'
+import { isSitemapIncomplete, isCrawlDegenerate, isThrottledOrUnknownStatus } from '../lib/analyzer/quality'
 import { generateReport } from '../lib/reports/generator'
 import { functions } from '../lib/inngest/functions'
 import type { SnapshotData, PageSnapshot, IssueInput } from '../lib/types'
@@ -701,7 +701,7 @@ async function main() {
   const reportResult = await generateReport(repSite.id)
   assert(typeof reportResult.score === 'number' && reportResult.score >= 0 && reportResult.score <= 100,
     `generateReport: geçerli skor döndü (${reportResult.score}/100)`)
-  assert(['A','B','C','D','F'].includes(reportResult.grade), `Geçerli not: ${reportResult.grade}`)
+  assert(['A','B','C','D','F'].includes(reportResult.grade ?? ''), `Geçerli not: ${reportResult.grade}`)
   assert(reportResult.issuesFound === 1, 'issuesFound doğru sayıldı')
   assert(reportResult.topIssues.length === 1, 'topIssues listesi dolu')
   assert(reportResult.topIssues[0].severity === 'HIGH', 'En ağır issue listede')
@@ -735,6 +735,82 @@ async function main() {
   assert(fnIds.includes('generate-report'), 'generate-report fonksiyonu mevcut')
 
   assert(true, 'Inngest fonksiyonları import edilip yapılandırıldı (gerçek çalışma Inngest Dev Server gerektirir)')
+
+  // BÖLÜM 12: Crawl Robustness — 429 / rate-limit dayanıklılığı
+  console.log('\n' + bold('12. Crawl Robustness — parseRetryAfter / degenerate / throttle guard'))
+  console.log('─'.repeat(50))
+
+  // 12a: parseRetryAfter
+  assert(parseRetryAfter('3') === 3000, 'parseRetryAfter: "3" → 3000ms')
+  assert(parseRetryAfter('100') === 5000, 'parseRetryAfter: "100" → 5000ms (cap 5s)')
+  assert(parseRetryAfter(null) === null, 'parseRetryAfter: null → null')
+  assert(parseRetryAfter('garbage') === null, 'parseRetryAfter: geçersiz → null')
+  const futureDate = new Date(Date.now() + 2000).toUTCString()
+  const raDate = parseRetryAfter(futureDate)
+  assert(raDate !== null && raDate <= 5000 && raDate > 0, `parseRetryAfter: HTTP-date → ${raDate}ms (0–5000 arası)`)
+
+  // 12b: isThrottledOrUnknownStatus
+  assert(isThrottledOrUnknownStatus(429) === true, 'isThrottledOrUnknown: 429 → true')
+  assert(isThrottledOrUnknownStatus(503) === true, 'isThrottledOrUnknown: 503 → true')
+  assert(isThrottledOrUnknownStatus(null) === true, 'isThrottledOrUnknown: null (ağ hatası) → true')
+  assert(isThrottledOrUnknownStatus(404) === false, 'isThrottledOrUnknown: 404 (kesin yok) → false')
+  assert(isThrottledOrUnknownStatus(200) === false, 'isThrottledOrUnknown: 200 → false')
+
+  // 12c: isCrawlDegenerate
+  assert(isCrawlDegenerate(429, 0) === true, 'isCrawlDegenerate: 429 / 0 sayfa → true (stradiji vakası)')
+  assert(isCrawlDegenerate(200, 5) === false, 'isCrawlDegenerate: 200 / 5 sayfa → false')
+  assert(isCrawlDegenerate(200, 0) === true, 'isCrawlDegenerate: 0 sayfa → true (durumdan bağımsız)')
+  assert(isCrawlDegenerate(null, 3) === false, 'isCrawlDegenerate: durum yok ama sayfa var (legacy) → false')
+  assert(isCrawlDegenerate(429, 2) === false, 'isCrawlDegenerate: ana sayfa 429 ama 2 sayfa alındı → false (kısmi dürüst rapor)')
+
+  // 12d: A5 — throttle'lı probe sahte "eksik" issue üretmemeli
+  const throttledCrawl = { homepageStatus: 200, robotsStatus: 429, sitemapStatus: 429, llmsStatus: 429, throttled: true, failures: [] }
+  const cleanCrawl = { homepageStatus: 200, robotsStatus: 404, sitemapStatus: 404, llmsStatus: 404, throttled: false, failures: [] }
+
+  const sm429 = checkSitemap(makeSnapshot({ hasSitemap: false, technicalDetails: { sitemapUrlCount: null, allowedBots: [], crawl: throttledCrawl } }))
+  assert(sm429 === null, 'checkSitemap: sitemap probe 429 → sahte "eksik" issue üretilmez')
+  const sm404 = checkSitemap(makeSnapshot({ hasSitemap: false, technicalDetails: { sitemapUrlCount: null, allowedBots: [], crawl: cleanCrawl } }))
+  assert(sm404 !== null && sm404.severity === 'HIGH', 'checkSitemap: sitemap probe 404 → "eksik" issue üretilir')
+
+  const rb429 = checkRobotsTxt(makeSnapshot({ hasRobotsTxt: false, robotsBlocksAI: false, technicalDetails: { allowedBots: [], crawl: throttledCrawl } }))
+  assert(rb429 === null, 'checkRobotsTxt: robots probe 429 → sahte "yok" issue üretilmez')
+
+  const lm429 = checkLlmsTxt(makeSnapshot({ hasLlmsTxt: false, llmsTxtContent: null, technicalDetails: { allowedBots: [], crawl: throttledCrawl } }))
+  assert(lm429 === null, 'checkLlmsTxt: llms probe 429 → sahte "yok" issue üretilmez')
+
+  // Legacy snapshot (crawl health yok) → eski davranış korunur, "eksik" issue üretilir
+  const smLegacy = checkSitemap(makeSnapshot({ hasSitemap: false, technicalDetails: { sitemapUrlCount: null, allowedBots: [] } }))
+  assert(smLegacy !== null && smLegacy.severity === 'HIGH', 'checkSitemap: legacy (crawl yok) → "eksik" issue korunur')
+
+  // 12e: generateReport — degenerate crawl → "tarama başarısız" raporu (skor null)
+  const failUser = await db.user.create({ data: { email: 'crawlfail_test@geo-platform.local', name: 'Crawl Fail Test' } })
+  const failSite = await db.site.create({
+    data: { userId: failUser.id, url: 'https://crawlfail.example.com', name: '__test_crawlfail__', mode: 'ADVISOR' },
+  })
+  await db.snapshot.create({
+    data: {
+      siteId: failSite.id,
+      hasLlmsTxt: false, llmsTxtContent: null,
+      hasRobotsTxt: false, robotsBlocksAI: false,
+      hasSitemap: false, httpsEnabled: true,
+      pages: [] as unknown as object[],
+      technicalDetails: { crawl: { homepageStatus: 429, robotsStatus: 429, sitemapStatus: 429, llmsStatus: 429, throttled: true, failures: [] } },
+    },
+  })
+  const failReport = await generateReport(failSite.id)
+  assert(failReport.crawlFailed === true, 'generateReport: degenerate crawl → crawlFailed: true')
+  assert(failReport.score === null, 'generateReport: degenerate crawl → score null (sahte F üretilmez)')
+  assert(failReport.grade === null, 'generateReport: degenerate crawl → grade null')
+  assert(failReport.summary.includes('Tarama tamamlanamadı'), 'generateReport: özet "Tarama tamamlanamadı" içeriyor')
+  assert(!failReport.summary.includes('5 kelime'), 'generateReport: özet "5 kelime" gibi sahte bulgu içermiyor')
+  const failDbReport = await db.report.findUnique({ where: { id: failReport.reportId } })
+  assert(failDbReport?.score === null, 'DB: crawl-failed report.score null kaydedildi')
+
+  await db.report.deleteMany({ where: { siteId: failSite.id } })
+  await db.snapshot.deleteMany({ where: { siteId: failSite.id } })
+  await db.site.delete({ where: { id: failSite.id } })
+  await db.user.delete({ where: { id: failUser.id } })
+  assert(true, 'Crawl Robustness test verisi temizlendi')
 
   // SONUÇ
   console.log('\n' + '═'.repeat(50))

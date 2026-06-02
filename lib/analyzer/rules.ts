@@ -1,6 +1,6 @@
 import type { IssueInput, SnapshotData, PageSnapshot } from '@/lib/types'
 import { t } from '@/lib/i18n'
-import { scoreAiBotAccess, isSitemapIncomplete } from './quality'
+import { scoreAiBotAccess, isSitemapIncomplete, isThrottledOrUnknownStatus } from './quality'
 
 // ----- Yardımcı -----
 
@@ -18,7 +18,10 @@ function issue(
  * GPTBot, ClaudeBot, PerplexityBot, OAI-SearchBot, Google-Extended için Disallow varsa CRITICAL issue.
  */
 export function checkRobotsTxt(snapshot: SnapshotData, locale: string = 'tr'): IssueInput | null {
+  const crawl = snapshot.technicalDetails?.crawl
   if (!snapshot.hasRobotsTxt) {
+    // Probe 429/5xx ile başarısız olduysa "yok" deme — bu bilinmiyor, sahte negatif üretme.
+    if (crawl && isThrottledOrUnknownStatus(crawl.robotsStatus)) return null
     return issue(snapshot.id, {
       severity: 'LOW',
       category: 'ROBOTS',
@@ -80,7 +83,10 @@ export function checkLlmsTxt(
   previousSnapshot?: SnapshotData,
   locale: string = 'tr'
 ): IssueInput | null {
+  const crawl = snapshot.technicalDetails?.crawl
   if (!snapshot.hasLlmsTxt) {
+    // Probe 429/5xx ile başarısız olduysa "yok" deme.
+    if (crawl && isThrottledOrUnknownStatus(crawl.llmsStatus)) return null
     return issue(snapshot.id, {
       severity: 'HIGH',
       category: 'LLMS_TXT',
@@ -193,7 +199,10 @@ export function checkHttps(snapshot: SnapshotData, locale: string = 'tr'): Issue
  * Sitemap varlık kontrolü.
  */
 export function checkSitemap(snapshot: SnapshotData, locale: string = 'tr'): IssueInput | null {
+  const crawl = snapshot.technicalDetails?.crawl
   if (!snapshot.hasSitemap) {
+    // Probe 429/5xx ile başarısız olduysa "yok" deme.
+    if (crawl && isThrottledOrUnknownStatus(crawl.sitemapStatus)) return null
     return issue(snapshot.id, {
       severity: 'HIGH',
       category: 'TECHNICAL',

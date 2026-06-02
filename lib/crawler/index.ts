@@ -1,4 +1,4 @@
-import { chromium, type BrowserContext } from 'playwright'
+import { chromium, type BrowserContext, type Page, type Response as PwResponse } from 'playwright'
 import { parseStringPromise } from 'xml2js'
 import crypto from 'crypto'
 import { db } from '@/lib/db'
@@ -7,6 +7,7 @@ import type {
   PrioritizedUrl,
   CrawlResult,
   CrawlError,
+  CrawlHealth,
   FaqBlock,
 } from '@/lib/types'
 
@@ -14,7 +15,87 @@ const GPTBOT_UA = 'GPTBot/1.0 (+https://openai.com/gptbot)'
 const MAX_URLS = 50
 const CRAWL_TIMEOUT_MS = 15_000
 const FETCH_TIMEOUT_MS = 10_000
-const MAX_CONCURRENT_PAGES = 3
+// Burst'ü düşür: WP Engine/Cloudflare gibi rate-limiter'ları tetiklemeyelim (429 → boş sayfa).
+const MAX_CONCURRENT_PAGES = 2
+
+// --- Rate-limit dayanıklılığı (429/5xx) ---
+// 429 yanıtı ANINDA döner (timeout değil); asıl risk her sayfanın Retry-After kadar beklemesi.
+// Bu yüzden: Retry-After 5s ile sınırlı, en fazla 3 deneme, ve ardışık throttle'da devre kesici.
+const MAX_FETCH_ATTEMPTS = 3
+const RETRY_AFTER_CAP_S = 5
+const POLITE_DELAY_MS = 250
+// Bu kadar istek tüm denemelerini tükettiği hâlde hâlâ throttle'lıysa kalan sayfaları taramayı bırak.
+const THROTTLE_CIRCUIT_THRESHOLD = 3
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504])
+
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
+
+function backoffMs(attempt: number): number {
+  // Gerçek dünyada 429'lar genelde Retry-After'sız gelir (ör. WP Engine). Throttle penceresi
+  // saniyeler sürer; kısa backoff yetmez. Sadece 429 görüldüğünde tetiklenir — sağlıklı siteyi yavaşlatmaz.
+  return 2000 * 2 ** attempt // 2s, 4s, ...
+}
+
+/**
+ * Retry-After başlığını milisaniyeye çevirir. Saniye veya HTTP-date formatını destekler.
+ * RETRY_AFTER_CAP_S ile sınırlanır; geçersiz/yok ise null.
+ */
+export function parseRetryAfter(value: string | null | undefined): number | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (/^\d+$/.test(trimmed)) {
+    return Math.min(parseInt(trimmed, 10), RETRY_AFTER_CAP_S) * 1000
+  }
+  const dateMs = Date.parse(trimmed)
+  if (!Number.isNaN(dateMs)) {
+    const deltaMs = dateMs - Date.now()
+    if (deltaMs <= 0) return 0
+    return Math.min(deltaMs, RETRY_AFTER_CAP_S * 1000)
+  }
+  return null
+}
+
+/** page.goto'yu 429/5xx durumunda Retry-After/backoff ile yeniden dener. */
+async function gotoWithRetry(page: Page, url: string): Promise<PwResponse | null> {
+  let lastResp: PwResponse | null = null
+  for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt++) {
+    if (attempt === 0) await sleep(POLITE_DELAY_MS) // nazik gecikme — burst'ü dağıt
+    lastResp = await page.goto(url, { timeout: CRAWL_TIMEOUT_MS, waitUntil: 'domcontentloaded' })
+    const status = lastResp?.status() ?? 0
+    if (!lastResp || !RETRYABLE_STATUS.has(status)) return lastResp
+    if (attempt < MAX_FETCH_ATTEMPTS - 1) {
+      await sleep(parseRetryAfter(lastResp.headers()['retry-after']) ?? backoffMs(attempt))
+    }
+  }
+  return lastResp
+}
+
+/** fetch'i 429/5xx durumunda Retry-After/backoff ile yeniden dener. Ağ hatası → null. */
+async function fetchWithRetry(url: string, headers: Record<string, string>): Promise<Response | null> {
+  let lastRes: Response | null = null
+  for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt++) {
+    try {
+      lastRes = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), headers })
+    } catch {
+      return null // ağ hatası/timeout — yeniden denemeden çık
+    }
+    if (!RETRYABLE_STATUS.has(lastRes.status)) return lastRes
+    if (attempt < MAX_FETCH_ATTEMPTS - 1) {
+      await sleep(parseRetryAfter(lastRes.headers.get('retry-after')) ?? backoffMs(attempt))
+    }
+  }
+  return lastRes
+}
+
+/** page.goto bir hata sayfası (non-2xx) döndürdüğünde içerik AYRIŞTIRILMAZ — bunun yerine bu hata fırlatılır. */
+class CrawlStatusError extends Error {
+  status: number
+  constructor(url: string, status: number) {
+    super(`HTTP ${status} — ${url}`)
+    this.name = 'CrawlStatusError'
+    this.status = status
+  }
+}
 
 // AI bot user-agent'larını robots.txt'te engelleme tespiti için
 const AI_BOT_PATTERNS = [
@@ -72,17 +153,15 @@ const SPECIAL_URL_SUFFIXES = [
 
 // ----- Yardımcı fonksiyonlar -----
 
-async function fetchText(url: string): Promise<{ ok: boolean; content: string | null }> {
+async function fetchText(url: string): Promise<{ ok: boolean; content: string | null; status: number | null }> {
+  const res = await fetchWithRetry(url, { 'User-Agent': GPTBOT_UA })
+  if (!res) return { ok: false, content: null, status: null } // ağ hatası → durum bilinmiyor
+  if (!res.ok) return { ok: false, content: null, status: res.status }
   try {
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      headers: { 'User-Agent': GPTBOT_UA },
-    })
-    if (!res.ok) return { ok: false, content: null }
     const content = await res.text()
-    return { ok: true, content }
+    return { ok: true, content, status: res.status }
   } catch {
-    return { ok: false, content: null }
+    return { ok: false, content: null, status: res.status }
   }
 }
 
@@ -329,7 +408,12 @@ async function discoverUrlsWithPlaywright(baseUrl: string, baseOrigin: string): 
 
       try {
         const page = await context.newPage()
-        await page.goto(url, { timeout: CRAWL_TIMEOUT_MS, waitUntil: 'domcontentloaded' })
+        const response = await gotoWithRetry(page, url)
+        // Hata sayfasından (429/5xx vb.) link çıkarma — bağlantı yoktur, keşfi yanıltır.
+        if (!response || !response.ok()) {
+          await page.close()
+          continue
+        }
 
         const links = await page.$$eval(
           'a[href]',
@@ -416,7 +500,13 @@ async function crawlPageWithContext(url: string, context: BrowserContext): Promi
   const startTime = Date.now()
 
   try {
-    await page.goto(url, { timeout: CRAWL_TIMEOUT_MS, waitUntil: 'domcontentloaded' })
+    const response = await gotoWithRetry(page, url)
+    const status = response?.status() ?? 0
+    // KRİTİK: page.goto 429/5xx'te de normal döner. Hata sayfasını içerik sanıp ayrıştırma —
+    // "5 kelime / sayfa yok" sahte raporlarının kök nedeni buydu.
+    if (!response || !response.ok()) {
+      throw new CrawlStatusError(url, status)
+    }
 
     const [title, metaDescription, h1, h2Array, h3Array, jsonLdSchemas, faqBlocks, wordCount, hasInternalLinks] =
       await Promise.all([
@@ -516,6 +606,7 @@ async function crawlPageWithContext(url: string, context: BrowserContext): Promi
       wordCount,
       hasInternalLinks,
       loadTimeMs,
+      httpStatus: status,
       contentHash: contentHash(title, h1, wordCount),
     }
   } finally {
@@ -545,13 +636,12 @@ export async function crawlSite(siteId: string): Promise<CrawlResult> {
     .filter(p => !SPECIAL_URL_SUFFIXES.some(s => p.url.endsWith(s)))
     .map(p => p.url)
 
-  // Robots.txt, llms.txt ve sitemap kontrolü — Playwright yerine basit fetch
+  // Robots.txt, llms.txt ve sitemap kontrolü — Playwright yerine basit fetch.
+  // Sıralı (paralel değil): aynı origin'e aynı anda istek yağdırıp 429 tetiklemeyelim.
   const base = new URL(site.url)
-  const [robotsResult, llmsResultRaw, sitemapResult] = await Promise.all([
-    fetchText(`${base.origin}/robots.txt`),
-    fetchText(`${base.origin}/llms.txt`),
-    fetchText(`${base.origin}/sitemap.xml`),
-  ])
+  const robotsResult = await fetchText(`${base.origin}/robots.txt`)
+  const llmsResultRaw = await fetchText(`${base.origin}/llms.txt`)
+  const sitemapResult = await fetchText(`${base.origin}/sitemap.xml`)
 
   const sitemapExists = sitemapResult.ok && !!sitemapResult.content
 
@@ -566,23 +656,51 @@ export async function crawlSite(siteId: string): Promise<CrawlResult> {
   const robotsBlocksAI = blockedBots.length > 0
   const sitemapUrlCount = await parseSitemapUrlCount(sitemapResult.content)
 
-  // Sayfa taraması — max 3 eş zamanlı
+  // Sayfa taraması — düşük eş zamanlılık + devre kesici.
+  // Bir sayfa non-2xx dönerse CrawlStatusError fırlatılır; içerik OLARAK ayrıştırılmaz.
   const browser = await chromium.launch({ headless: true })
   const context = await browser.newContext({ userAgent: GPTBOT_UA })
 
+  const failures: { url: string; status: number }[] = []
+  let throttleCount = 0
+  let circuitOpen = false
+
   try {
     const tasks = urlsToCrawl.map(url => async () => {
-      const result = await crawlPageWithContext(url, context).catch(err => {
-        errors.push({ url, error: err.message })
+      if (circuitOpen) return null // site açıkça throttle ediyor — kalan sayfaları hammerlamayı bırak
+      try {
+        return await crawlPageWithContext(url, context)
+      } catch (err) {
+        const status = err instanceof CrawlStatusError ? err.status : 0
+        failures.push({ url, status })
+        if (RETRYABLE_STATUS.has(status)) {
+          throttleCount++
+          if (throttleCount >= THROTTLE_CIRCUIT_THRESHOLD) circuitOpen = true
+        }
+        errors.push({ url, error: err instanceof Error ? err.message : String(err) })
         return null
-      })
-      return result
+      }
     })
 
     const results = await withConcurrencyLimit(tasks, MAX_CONCURRENT_PAGES)
     pages.push(...results.filter((p): p is PageSnapshot => p !== null))
   } finally {
     await browser.close()
+  }
+
+  // Crawl sağlığı — "tarama başarısız" tespiti ve 429 teşhisi için
+  const homepagePath = (u: string): boolean => {
+    try { return new URL(u).pathname === '/' } catch { return false }
+  }
+  const homepagePage = pages.find(p => homepagePath(p.url))
+  const homepageFailure = failures.find(f => homepagePath(f.url))
+  const crawlHealth: CrawlHealth = {
+    homepageStatus: homepagePage?.httpStatus ?? homepageFailure?.status ?? null,
+    robotsStatus: robotsResult.status,
+    sitemapStatus: sitemapResult.status,
+    llmsStatus: llmsResultRaw.status,
+    throttled: circuitOpen || throttleCount > 0,
+    failures,
   }
 
   // Önceki snapshot'ı bul
@@ -608,6 +726,7 @@ export async function crawlSite(siteId: string): Promise<CrawlResult> {
         blockedBots,
         allowedBots,
         sitemapUrlCount,
+        crawl: crawlHealth as unknown as object,
       },
       previousSnapshotId: previousSnapshot?.id ?? null,
     },
@@ -631,6 +750,7 @@ export async function crawlSite(siteId: string): Promise<CrawlResult> {
     blockedBots,
     hasSitemap: sitemapExists,
     httpsEnabled: site.url.startsWith('https://'),
+    crawlHealth,
     errors,
   }
 }

@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { calculateGeoScore } from './score'
-import type { SnapshotData, PageSnapshot } from '@/lib/types'
+import { isCrawlDegenerate } from '@/lib/analyzer/quality'
+import type { SnapshotData, PageSnapshot, CrawlHealth } from '@/lib/types'
 
 function getISOWeek(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
@@ -14,9 +15,10 @@ export interface ReportSummary {
   siteId: string
   snapshotId: string
   period: string
-  score: number
-  grade: string
+  score: number | null
+  grade: string | null
   summary: string
+  crawlFailed?: boolean
   topIssues: Array<{
     severity: string
     category: string
@@ -43,6 +45,57 @@ export async function generateReport(siteId: string, triggerType: 'MANUAL' | 'WE
   })
 
   if (!snapshot) throw new Error(`Site için snapshot bulunamadı: ${siteId}`)
+
+  // period: ISO hafta numarası — "2026-W21"
+  const now = new Date()
+  const weekNum = getISOWeek(now)
+  const period = `${now.getFullYear()}-W${String(weekNum).padStart(2, '0')}`
+
+  // --- Tarama başarısız (degenerate) guard ---
+  // Ana sayfa 2xx alınamadı / hiç sayfa yok → skor üretme, sahte düşük not gösterme.
+  const crawl = (snapshot.technicalDetails as { crawl?: CrawlHealth } | null)?.crawl ?? null
+  const crawledPageCount = (snapshot.pages as unknown as unknown[]).length
+  if (isCrawlDegenerate(crawl?.homepageStatus, crawledPageCount)) {
+    const statusPart = crawl?.homepageStatus ? ` (HTTP ${crawl.homepageStatus})` : ''
+    const failSummary =
+      `Tarama tamamlanamadı — siteye erişilemedi${statusPart}. ` +
+      `Site geçici olarak tarayıcı erişimini sınırlamış olabilir (ör. hız sınırı / 429). ` +
+      `Lütfen birkaç dakika sonra yeniden tarayın.`
+
+    const failReport = await db.report.create({
+      data: {
+        siteId,
+        period,
+        summary: `[—] ${failSummary}`,
+        triggerType,
+        snapshotId: snapshot.id,
+        issuesFound: snapshot.issues.length,
+        issuesFixed: 0,
+        aiCrawlerVisits: 0,
+        llmsTxtUpdated: false,
+        score: null,
+        grade: null,
+      },
+    })
+
+    return {
+      reportId: failReport.id,
+      siteId,
+      snapshotId: snapshot.id,
+      period,
+      score: null,
+      grade: null,
+      summary: failSummary,
+      crawlFailed: true,
+      topIssues: [],
+      breakdown: {},
+      crawledAt: snapshot.crawledAt,
+      pagesAnalyzed: crawledPageCount,
+      issuesFound: snapshot.issues.length,
+      issuesFixed: 0,
+      aiCrawlerVisits: 0,
+    }
+  }
 
   const snapshotData: SnapshotData = {
     id: snapshot.id,
@@ -75,11 +128,6 @@ export async function generateReport(siteId: string, triggerType: 'MANUAL' | 'WE
     }))
 
   const issuesFixed = snapshot.issues.filter(i => i.status === 'APPLIED').length
-
-  // period: ISO hafta numarası — "2026-W21"
-  const now = new Date()
-  const weekNum = getISOWeek(now)
-  const period = `${now.getFullYear()}-W${String(weekNum).padStart(2, '0')}`
 
   const totalAiVisits = snapshot.aiCrawlerVisits
     ? Object.values(snapshot.aiCrawlerVisits as Record<string, number>).reduce((s, v) => s + v, 0)

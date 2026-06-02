@@ -17,7 +17,7 @@ const SEVERITY_BADGE: Record<string, string> = {
 }
 
 function buildEmailHtml(report: ReportSummary, appUrl: string, locale: string): string {
-  const gradeColor = GRADE_COLOR[report.grade] ?? '#6b7280'
+  const gradeColor = GRADE_COLOR[report.grade ?? ''] ?? '#6b7280'
   const issueRows = report.topIssues
     .map(i => `
       <tr>
@@ -51,7 +51,7 @@ function buildEmailHtml(report: ReportSummary, appUrl: string, locale: string): 
 
       <!-- Skor -->
       <div style="text-align:center;background:#f9fafb;border-radius:12px;padding:32px;margin-bottom:24px;">
-        <div style="font-size:72px;font-weight:800;color:${gradeColor};line-height:1;">${report.score}</div>
+        <div style="font-size:72px;font-weight:800;color:${gradeColor};line-height:1;">${report.score ?? '—'}</div>
         <div style="font-size:14px;color:#6b7280;margin-top:4px;">${t('email.scoreUnit', locale)}</div>
         <div style="display:inline-block;background:${gradeColor};color:#fff;font-size:18px;font-weight:700;
           padding:4px 16px;border-radius:20px;margin-top:12px;">${t('email.gradeLabel', locale)}${report.grade}</div>
@@ -123,7 +123,7 @@ export async function sendReportEmail(
   const fromEmail = process.env.REPORT_FROM_EMAIL ?? 'reports@obsey.io'
 
   const html = buildEmailHtml(report, appUrl, locale)
-  const subject = t('email.subject', locale, { siteName, score: report.score, grade: report.grade })
+  const subject = t('email.subject', locale, { siteName, score: report.score ?? 0, grade: report.grade ?? '—' })
 
   if (!apiKey) {
     console.log(`[sendReportEmail] RESEND_API_KEY eksik — e-posta gönderilmedi. Alıcı: ${recipientEmail}, Konu: ${subject}`)

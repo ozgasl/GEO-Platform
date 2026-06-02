@@ -126,6 +126,8 @@ export const weeklyReportJob = inngest.createFunction(
 
       const result = await step.run(`report-${site.id}`, async () => {
         const report = await generateReport(site.id, 'WEEKLY')
+        // Tarama başarısızsa "skor yok" e-postası gönderme.
+        if (report.crawlFailed) return { sent: false }
         const emailResult = await sendReportEmail(
           report,
           site.user.email!,
@@ -171,7 +173,8 @@ export const generateReportJob = inngest.createFunction(
       })
     })
 
-    if (site.user.email && site.user.emailReports) {
+    // Tarama başarısızsa (degenerate) skor/uyarı e-postalarını atla.
+    if (!report.crawlFailed && site.user.email && site.user.emailReports) {
       await step.run('send-report-email', async () => {
         const emailResult = await sendReportEmail(report, site.user.email!, site.name, APP_URL)
         if (emailResult.sent) {
@@ -184,7 +187,8 @@ export const generateReportJob = inngest.createFunction(
       })
     }
 
-    if (site.user.email && site.user.emailAlerts) {
+    if (!report.crawlFailed && report.score != null && site.user.email && site.user.emailAlerts) {
+      const currentScore = report.score
       await step.run('send-alert-email', async () => {
         const prevReport = await db.report.findFirst({
           where: { siteId, id: { not: report.reportId }, snapshotId: { not: null } },
@@ -210,7 +214,7 @@ export const generateReportJob = inngest.createFunction(
         const newCriticalCount = Math.max(0, currCritical - prevCritical)
         const newHighCount = Math.max(0, currHigh - prevHigh)
         const totalNewIssues = Math.max(0, currTotal - prevTotal)
-        const scoreDrop = prevReport?.score != null ? prevReport.score - report.score : 0
+        const scoreDrop = prevReport?.score != null ? prevReport.score - currentScore : 0
 
         const shouldAlert = newCriticalCount > 0 || scoreDrop >= 10 || totalNewIssues > 0
         if (!shouldAlert) return { alerted: false }
@@ -225,7 +229,7 @@ export const generateReportJob = inngest.createFunction(
           {
             siteName: site.name,
             siteUrl: site.url,
-            currentScore: report.score,
+            currentScore,
             previousScore: prevReport?.score ?? null,
             newCriticalCount,
             newHighCount,

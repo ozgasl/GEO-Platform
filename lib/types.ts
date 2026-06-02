@@ -11,6 +11,8 @@ export interface PageSnapshot {
   wordCount: number
   hasInternalLinks: boolean
   loadTimeMs: number
+  // HTTP durum kodu (page.goto yanıtı). Yalnızca 2xx sayfalar pages[]'e girer; alan geriye dönük uyumluluk için opsiyonel.
+  httpStatus?: number
   // SHA-256(title + h1 + wordCount) — değişmemiş sayfaları LLM analizinden muaf tutmak için
   contentHash: string
 }
@@ -40,6 +42,7 @@ export interface CrawlResult {
   blockedBots: string[]
   hasSitemap: boolean
   httpsEnabled: boolean
+  crawlHealth: CrawlHealth
   errors: CrawlError[]
 }
 
@@ -88,5 +91,19 @@ export interface SnapshotData {
     allowedBots?: string[]
     blockedBots?: string[]
     sitemapUrlCount?: number | null
+    // Crawl sağlığı — 429/5xx rate-limit teşhisi ve "tarama başarısız" tespiti için
+    crawl?: CrawlHealth | null
   } | null
+}
+
+// Crawl sırasında toplanan HTTP durum bilgisi.
+// homepageStatus 2xx değilse (veya hiç sayfa taranamadıysa) tarama "degenerate" sayılır.
+// Probe status'ları (robots/sitemap/llms) 429/503/5xx ise "yok" yerine "bilinmiyor" demektir.
+export interface CrawlHealth {
+  homepageStatus: number | null
+  robotsStatus: number | null
+  sitemapStatus: number | null
+  llmsStatus: number | null
+  throttled: boolean
+  failures: { url: string; status: number }[]
 }
