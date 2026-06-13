@@ -34,3 +34,11 @@ export async function requireSiteOwner(siteId: string, userId: string) {
   })
   return site
 }
+
+/**
+ * Kullanıcının ADMIN_EMAIL ile eşleşip eşleşmediğini kontrol eder.
+ */
+export function isAdminUser(user: User): boolean {
+  const adminEmail = process.env.ADMIN_EMAIL
+  return !!adminEmail && user.email === adminEmail
+}

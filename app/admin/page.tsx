@@ -1,5 +1,7 @@
+import Link from 'next/link'
 import { getSessionUser } from '@/lib/api-utils'
 import { db } from '@/lib/db'
+import ScoreBadge from '@/components/dashboard/ScoreBadge'
 
 async function getAdminStats() {
   const [userCount, siteCount, reportCount] = await Promise.all([
@@ -19,10 +21,25 @@ async function getUsers() {
   })
 }
 
+async function getAllSites() {
+  return db.site.findMany({
+    orderBy: { createdAt: 'desc' },
+    include: {
+      user: { select: { email: true, name: true } },
+      reports: { orderBy: { generatedAt: 'desc' }, take: 1 },
+    },
+  })
+}
+
 const PLAN_LABELS: Record<string, string> = {
   STARTER: 'Starter',
   AGENCY_5: 'Agency 5',
   AGENCY_20: 'Agency 20',
+}
+
+const MODE_LABELS: Record<string, string> = {
+  ADVISOR: 'Advisor',
+  PILOT: 'Pilot',
 }
 
 export default async function AdminPage() {
@@ -34,7 +51,7 @@ export default async function AdminPage() {
     return <div className="p-8 text-red-600">Yetkisiz erişim.</div>
   }
 
-  const [stats, users] = await Promise.all([getAdminStats(), getUsers()])
+  const [stats, users, sites] = await Promise.all([getAdminStats(), getUsers(), getAllSites()])
 
   return (
     <div className="p-8 max-w-7xl">
@@ -116,6 +133,89 @@ export default async function AdminPage() {
                   </td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Sites table */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mt-8">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-700">Siteler</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-left">
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Kullanıcı</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Site</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Mod</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Son Tarama</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">GEO Skoru</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Sorunlar</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Rapor</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {sites.map(site => {
+                const latestReport = site.reports[0]
+                return (
+                  <tr key={site.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-600">{site.user.email}</td>
+                    <td className="px-4 py-3">
+                      <p className="text-gray-900 font-medium">{site.name}</p>
+                      <a
+                        href={site.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline"
+                      >
+                        {site.url}
+                      </a>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                        {MODE_LABELS[site.mode] ?? site.mode}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-500">
+                      {site.lastCrawledAt
+                        ? site.lastCrawledAt.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Istanbul' })
+                        : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      {latestReport?.score != null ? (
+                        <ScoreBadge score={latestReport.score} size="sm" />
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 text-center">
+                      {latestReport ? `${latestReport.issuesFixed}/${latestReport.issuesFound}` : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      {latestReport ? (
+                        <div className="flex flex-col gap-1">
+                          <Link
+                            href={`/api/sites/${site.id}/reports/${latestReport.id}/download?type=report&format=pdf`}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            Rapor PDF
+                          </Link>
+                          <Link
+                            href={`/api/sites/${site.id}/reports/${latestReport.id}/download?type=action-plan&format=pdf`}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            Aksiyon Planı PDF
+                          </Link>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

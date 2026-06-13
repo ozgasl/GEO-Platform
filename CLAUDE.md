@@ -171,6 +171,7 @@ components/dashboard/
 - **DB admin scripts:** `scripts/` klasöründe `.ts` dosyası + `npx tsx scripts/dosya.ts` kullan; `npx tsx -e "..."` CJS top-level await hatası verir
 - **Bing Webmaster:** doğrulandı; sitemap gönderildi
 - **Google Search Console:** henüz yapılmadı — DNS TXT kaydı gerekiyor
+- **`/admin` paneli:** mevcut sitenin arkasında gizli (ana domain + login + `ADMIN_EMAIL` kontrolü, sidebar'da link yok). `ADMIN_EMAIL` env değişkeni ayarlanmazsa `/admin` herkese "Yetkisiz erişim" döner — Vercel production env'de set edilmeli. Kullanıcı listesi/plan yönetiminin yanında tüm sitelerin listesi, GEO skoru ve rapor indirme linkleri de gösterilir (admin için `requireSiteOwner` bypass'ı `isAdminUser()` ile sağlanır).
 
 ## Sonraki Adımlar (v1.1)
 - Pilot Mode (automated apply to customer sites) — Opus design pass required first

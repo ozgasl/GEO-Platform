@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getSessionUser, requireSiteOwner } from '@/lib/api-utils'
+import { getSessionUser, requireSiteOwner, isAdminUser } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import { computeTechnicalScores, type QualityScore } from '@/lib/analyzer/quality'
 import { t } from '@/lib/i18n'
@@ -333,7 +333,10 @@ export async function GET(
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: t('api.error.unauthorized', locale) }, { status: 401 })
 
-  const site = await requireSiteOwner(params.siteId, user.id)
+  let site = await requireSiteOwner(params.siteId, user.id)
+  if (!site && isAdminUser(user)) {
+    site = await db.site.findUnique({ where: { id: params.siteId } })
+  }
   if (!site) return NextResponse.json({ error: t('api.error.notFound', locale) }, { status: 404 })
 
   const report = await db.report.findFirst({
