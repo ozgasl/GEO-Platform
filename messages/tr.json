@@ -224,6 +224,7 @@
   "report.comparison.current": "Şu An",
   "report.comparison.change": "Değişim",
   "report.section.allFindings": "Tüm Bulgular",
+  "report.section.historicalFindings": "Geçmiş Bulgular",
   "report.severityHeading.critical": "🔴 Kritik",
   "report.severityHeading.high": "🟠 Yüksek",
   "report.severityHeading.medium": "🟡 Orta",

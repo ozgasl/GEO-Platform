@@ -91,7 +91,9 @@ const STATUS_TR: Record<string, string> = {
 
 // ─── Shared sub-components ──────────────────────────────────────────────────
 
-function TechScoresSection({ techScores }: { techScores: ActionPlanPdfProps['techScores'] }) {
+type TechScore = { label: string; grade: string; score: number; recommendation?: string; unknown?: boolean }
+
+function TechScoresSection({ techScores }: { techScores: TechScore[] }) {
   if (!techScores || techScores.length === 0) return null
   const withRecs = techScores.filter(s => s.recommendation && !s.unknown)
   return (
@@ -145,102 +147,6 @@ function PageFooter({ generatedAt }: { generatedAt: Date }) {
   )
 }
 
-// ─── ActionPlanPdf ──────────────────────────────────────────────────────────
-
-export interface ActionPlanPdfProps {
-  siteName: string
-  siteUrl: string
-  period: string
-  generatedAt: Date
-  summary: string
-  pendingCount: number
-  techScores: Array<{ label: string; grade: string; score: number; recommendation?: string; unknown?: boolean }>
-  issues: Array<{
-    severity: string
-    category: string
-    title: string
-    description: string
-    impact: string
-    actionType: string
-    deployInstructions?: string
-  }>
-}
-
-export function ActionPlanPdf(props: ActionPlanPdfProps) {
-  const { siteName, siteUrl, period, generatedAt, summary, pendingCount, techScores, issues } = props
-  return (
-    <Document>
-      <Page size="A4" style={styles.page}>
-        <BrandLogo />
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>GEO Aksiyon Plan&#305;</Text>
-          <Text style={styles.headerSub}>{siteName}</Text>
-        </View>
-
-        {/* Info table */}
-        <View style={styles.infoTable}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Site URL</Text>
-            <Text style={styles.infoValue}>{siteUrl}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>D&#246;nem</Text>
-            <Text style={styles.infoValue}>{period}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Olu&#351;turuldu</Text>
-            <Text style={styles.infoValue}>{generatedAt.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul' })}</Text>
-          </View>
-          <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
-            <Text style={styles.infoLabel}>Bekleyen &#304;yile&#351;tirme</Text>
-            <Text style={styles.infoValue}>{pendingCount}</Text>
-          </View>
-        </View>
-
-        {/* Summary */}
-        <View style={styles.summaryBox}>
-          <Text style={styles.summaryText}>{summary}</Text>
-        </View>
-
-        {/* Technical Status */}
-        <TechScoresSection techScores={techScores} />
-
-        {/* Issues */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Bekleyen &#304;yile&#351;tirmeler</Text>
-          {issues.length === 0 ? (
-            <Text style={{ fontSize: 9, color: '#6B7280' }}>T&#252;m kontroller ge&#231;ti. Aktif sorun yok.</Text>
-          ) : (
-            issues.map((issue, i) => {
-              const sevColor = SEVERITY_COLORS[issue.severity] ?? SEVERITY_COLORS.LOW
-              return (
-                <View key={i} style={styles.issueCard} wrap={false}>
-                  <View style={[styles.issueHeader, { backgroundColor: sevColor.bg }]}>
-                    <Text style={[styles.issueBadge, { backgroundColor: sevColor.bg, color: sevColor.text }]}>
-                      {SEVERITY_TR[issue.severity] ?? issue.severity}
-                    </Text>
-                    <Text style={styles.issueTitle}>{issue.title}</Text>
-                  </View>
-                  <View style={styles.issueBody}>
-                    <Text style={styles.issueDesc}>{issue.description}</Text>
-                    <Text style={styles.issueImpact}>{issue.impact}</Text>
-                    {issue.deployInstructions ? (
-                      <Text style={styles.deployBox}>{issue.deployInstructions}</Text>
-                    ) : null}
-                  </View>
-                </View>
-              )
-            })
-          )}
-        </View>
-
-        <PageFooter generatedAt={generatedAt} />
-      </Page>
-    </Document>
-  )
-}
-
 // ─── ReportPdf ───────────────────────────────────────────────────────────────
 
 export interface ReportPdfProps {
@@ -250,7 +156,7 @@ export interface ReportPdfProps {
   triggerType: string
   generatedAt: Date
   summary: string
-  techScores: Array<{ label: string; grade: string; score: number; recommendation?: string; unknown?: boolean }>
+  techScores: TechScore[]
   llmsTxtContent?: string | null
   stats: {
     issuesFound: number
@@ -260,6 +166,15 @@ export interface ReportPdfProps {
     llmsTxtUpdated: boolean
   }
   prevStats?: { issuesFound: number; issuesFixed: number } | null
+  pendingIssues: Array<{
+    severity: string
+    category: string
+    title: string
+    description: string
+    impact: string
+    actionType: string
+    deployInstructions?: string
+  }>
   findings: Array<{
     severity: string
     category: string
@@ -274,7 +189,7 @@ export interface ReportPdfProps {
 const SEVERITY_ORDER = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
 
 export function ReportPdf(props: ReportPdfProps) {
-  const { siteName, siteUrl, period, triggerType, generatedAt, summary, techScores, llmsTxtContent, stats, prevStats, findings } = props
+  const { siteName, siteUrl, period, triggerType, generatedAt, summary, techScores, llmsTxtContent, stats, prevStats, pendingIssues, findings } = props
 
   const triggerLabel = triggerType === 'WEEKLY' ? 'Haftalık' : 'Manuel'
 
@@ -381,10 +296,39 @@ export function ReportPdf(props: ReportPdfProps) {
           </View>
         ) : null}
 
-        {/* All Findings */}
+        {/* Pending Improvements */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Bekleyen &#304;yile&#351;tirmeler</Text>
+          {pendingIssues.length === 0 ? (
+            <Text style={{ fontSize: 9, color: '#6B7280' }}>T&#252;m kontroller ge&#231;ti. Aktif sorun yok.</Text>
+          ) : (
+            pendingIssues.map((issue, i) => {
+              const sevColor = SEVERITY_COLORS[issue.severity] ?? SEVERITY_COLORS.LOW
+              return (
+                <View key={i} style={styles.issueCard} wrap={false}>
+                  <View style={[styles.issueHeader, { backgroundColor: sevColor.bg }]}>
+                    <Text style={[styles.issueBadge, { backgroundColor: sevColor.bg, color: sevColor.text }]}>
+                      {SEVERITY_TR[issue.severity] ?? issue.severity}
+                    </Text>
+                    <Text style={styles.issueTitle}>{issue.title}</Text>
+                  </View>
+                  <View style={styles.issueBody}>
+                    <Text style={styles.issueDesc}>{issue.description}</Text>
+                    <Text style={styles.issueImpact}>{issue.impact}</Text>
+                    {issue.deployInstructions ? (
+                      <Text style={styles.deployBox}>{issue.deployInstructions}</Text>
+                    ) : null}
+                  </View>
+                </View>
+              )
+            })
+          )}
+        </View>
+
+        {/* Historical Findings (APPLIED + DISMISSED only) */}
         {findings.length > 0 ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>T&#252;m Bulgular</Text>
+            <Text style={styles.sectionTitle}>Ge&#231;mi&#351; Bulgular</Text>
             {SEVERITY_ORDER.map(sev => {
               const group = grouped[sev]
               if (!group || group.length === 0) return null

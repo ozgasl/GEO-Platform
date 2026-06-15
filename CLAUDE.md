@@ -172,6 +172,7 @@ components/dashboard/
 - **Bing Webmaster:** doğrulandı; sitemap gönderildi
 - **Google Search Console:** henüz yapılmadı — DNS TXT kaydı gerekiyor
 - **`/admin` paneli:** mevcut sitenin arkasında gizli (ana domain + login + `ADMIN_EMAIL` kontrolü, sidebar'da link yok). `ADMIN_EMAIL` env değişkeni ayarlanmazsa `/admin` herkese "Yetkisiz erişim" döner — Vercel production env'de set edilmeli. Kullanıcı listesi/plan yönetiminin yanında tüm sitelerin listesi, GEO skoru ve rapor indirme linkleri de gösterilir (admin için `requireSiteOwner` bypass'ı `isAdminUser()` ile sağlanır).
+- **AI-bot 403 tespiti DOĞRULANDI (2026-06-03):** puntodijital.com, roipublic.com, pindrinks.com — üçü de "GPTBot engellendi (HTTP 403)" raporladı; gerçek pozitif, Obsey hatası değil. Sadece UA değişince `GPTBot`→403 / tarayıcı→200 (UA-bazlı WAF engeli, rate-limit değil). Çözüm site sahibinde: Cloudflare/WAF'ta AI UA'larını allow-list'e ekleme. **Açık nüans (ertelendi):** probe'lara (robots/sitemap/llms) gelen 403, `isThrottledOrUnknownStatus` yalnız 429/5xx'e baktığından "yok" sanılıyor — PARTIAL taramada panelde yanıltıcı olabilir.
 
 ## Sonraki Adımlar (v1.1)
 - Pilot Mode (automated apply to customer sites) — Opus design pass required first
