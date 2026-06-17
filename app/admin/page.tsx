@@ -195,20 +195,12 @@ export default async function AdminPage() {
                     </td>
                     <td className="px-4 py-3">
                       {latestReport ? (
-                        <div className="flex flex-col gap-1">
-                          <Link
-                            href={`/api/sites/${site.id}/reports/${latestReport.id}/download?type=report&format=pdf`}
-                            className="text-xs text-blue-600 hover:underline"
-                          >
-                            Rapor PDF
-                          </Link>
-                          <Link
-                            href={`/api/sites/${site.id}/reports/${latestReport.id}/download?type=action-plan&format=pdf`}
-                            className="text-xs text-blue-600 hover:underline"
-                          >
-                            Aksiyon Planı PDF
-                          </Link>
-                        </div>
+                        <Link
+                          href={`/api/sites/${site.id}/reports/${latestReport.id}/download?format=pdf`}
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          Rapor PDF
+                        </Link>
                       ) : (
                         <span className="text-gray-400">—</span>
                       )}
