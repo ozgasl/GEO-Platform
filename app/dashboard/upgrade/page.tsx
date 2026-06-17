@@ -123,7 +123,8 @@ export default async function UpgradePage() {
                   Seç
                 </button>
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
-                  Ödeme entegrasyonu yakında aktif olacak. Satın almak için bizimle iletişime geçin.
+                  Ödeme entegrasyonu yakında aktif olacak. Satın almak için{' '}
+                  <Link href="/iletisim" className="underline font-medium">bizimle iletişime geçin</Link>.
                 </p>
               </div>
             ) : (

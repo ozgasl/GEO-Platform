@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/auth'
 import type { Metadata } from 'next'
+import Footer from '@/components/marketing/Footer'
 
 export const metadata: Metadata = {
   title: 'Obsey — AI Arama Motorlarında Görünürlük',
@@ -248,9 +249,7 @@ export default async function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-gray-100 py-8 px-4 text-center">
-        <p className="text-sm text-gray-400">Obsey &copy; 2026</p>
-      </footer>
+      <Footer />
     </div>
   )
 }
