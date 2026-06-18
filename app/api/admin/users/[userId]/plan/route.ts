@@ -16,14 +16,19 @@ export async function POST(
   const adminEmail = process.env.ADMIN_EMAIL
   if (!adminEmail || session.user.email !== adminEmail) return forbidden()
 
-  let body: unknown
+  const contentType = req.headers.get('content-type') ?? ''
+  let plan: unknown
   try {
-    body = await req.json()
+    if (contentType.includes('application/json')) {
+      const body = await req.json()
+      plan = (body as Record<string, unknown>)?.plan
+    } else {
+      const form = await req.formData()
+      plan = form.get('plan')
+    }
   } catch {
     return err('Geçersiz istek gövdesi.', 400)
   }
-
-  const plan = (body as Record<string, unknown>)?.plan
   if (typeof plan !== 'string' || !VALID_PLANS.has(plan)) {
     return err('Geçersiz plan değeri. FREE, STARTER, AGENCY_5 veya AGENCY_20 olmalıdır.', 400)
   }
