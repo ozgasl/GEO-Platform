@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { ok, err, unauthorized, forbidden } from '@/lib/api-utils'
@@ -33,13 +33,18 @@ export async function POST(
     return err('Geçersiz plan değeri. FREE, STARTER, AGENCY_5 veya AGENCY_20 olmalıdır.', 400)
   }
 
-  const user = await db.user.findUnique({ where: { id: params.userId } })
-  if (!user) return err('Kullanıcı bulunamadı.', 404)
+  try {
+    const user = await db.user.findUnique({ where: { id: params.userId } })
+    if (!user) return err('Kullanıcı bulunamadı.', 404)
 
-  await db.user.update({
-    where: { id: params.userId },
-    data: { plan: plan as Plan },
-  })
+    await db.user.update({
+      where: { id: params.userId },
+      data: { plan: plan as Plan },
+    })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return err(`Plan güncellenemedi: ${msg}`, 500)
+  }
 
-  return ok({ success: true })
+  return NextResponse.redirect(new URL('/admin', req.url), { status: 302 })
 }
