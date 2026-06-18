@@ -1,3 +1,6 @@
+-- This migration does not run in a transaction.
+-- PostgreSQL requires ALTER TYPE ... ADD VALUE to commit before it can be used in the same migration.
+
 -- Add FREE value to Plan enum
 ALTER TYPE "Plan" ADD VALUE IF NOT EXISTS 'FREE' BEFORE 'STARTER';
 
