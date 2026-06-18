@@ -25,9 +25,9 @@ export async function POST(
   const site = await requireSiteOwner(siteId, user.id)
   if (!site) return notFound()
 
-  // Trial gate: STARTER users who have used their free report cannot crawl again
+  // Trial gate: FREE users who have used their free report cannot crawl again
   const dbUser = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { plan: true, freeReportUsed: true } })
-  const isPaid = dbUser.plan === 'AGENCY_5' || dbUser.plan === 'AGENCY_20'
+  const isPaid = dbUser.plan !== 'FREE'
   if (!isPaid && dbUser.freeReportUsed) {
     return NextResponse.json(
       { error: 'trial_limit', message: 'Deneme raporunuzu kullandınız. Sınırsız tarama için planınızı yükseltin.', upgradeUrl: '/dashboard/upgrade' },

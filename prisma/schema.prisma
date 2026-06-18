@@ -16,7 +16,7 @@ model User {
   password      String?   // bcrypt hash — null for Google OAuth users
   emailVerified DateTime?
   image         String?
-  plan           Plan      @default(STARTER)
+  plan           Plan      @default(FREE)
   freeReportUsed Boolean   @default(false)
   emailReports   Boolean   @default(true)
   emailAlerts    Boolean   @default(true)
@@ -175,6 +175,7 @@ enum TriggerType {
 }
 
 enum Plan {
+  FREE
   STARTER
   AGENCY_5
   AGENCY_20

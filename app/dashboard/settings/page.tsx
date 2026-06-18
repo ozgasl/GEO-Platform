@@ -9,7 +9,8 @@ import type { Plan } from '@prisma/client'
 
 function planLabel(plan: Plan): string {
   switch (plan) {
-    case 'STARTER':    return 'Ücretsiz Deneme'
+    case 'FREE':       return 'Ücretsiz'
+    case 'STARTER':    return 'Starter'
     case 'AGENCY_5':   return 'Growth'
     case 'AGENCY_20':  return 'Scale'
     default:           return plan
@@ -18,7 +19,8 @@ function planLabel(plan: Plan): string {
 
 function planBadgeClass(plan: Plan): string {
   switch (plan) {
-    case 'STARTER':    return 'bg-gray-100 text-gray-700'
+    case 'FREE':       return 'bg-gray-100 text-gray-700'
+    case 'STARTER':    return 'bg-green-100 text-green-700'
     case 'AGENCY_5':   return 'bg-blue-100 text-blue-700'
     case 'AGENCY_20':  return 'bg-purple-100 text-purple-700'
     default:           return 'bg-gray-100 text-gray-700'
