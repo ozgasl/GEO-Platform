@@ -32,6 +32,7 @@ async function getAllSites() {
 }
 
 const PLAN_LABELS: Record<string, string> = {
+  FREE: 'Free',
   STARTER: 'Starter',
   AGENCY_5: 'Agency 5',
   AGENCY_20: 'Agency 20',
@@ -119,6 +120,7 @@ export default async function AdminPage() {
                         defaultValue={u.plan}
                         className="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
                       >
+                        <option value="FREE">Free</option>
                         <option value="STARTER">Starter</option>
                         <option value="AGENCY_5">Agency 5</option>
                         <option value="AGENCY_20">Agency 20</option>

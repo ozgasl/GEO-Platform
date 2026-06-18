@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { ok, err, unauthorized, forbidden } from '@/lib/api-utils'
 import { Plan } from '@prisma/client'
 
-const VALID_PLANS = new Set<string>(['STARTER', 'AGENCY_5', 'AGENCY_20'])
+const VALID_PLANS = new Set<string>(['FREE', 'STARTER', 'AGENCY_5', 'AGENCY_20'])
 
 export async function POST(
   req: NextRequest,
@@ -25,7 +25,7 @@ export async function POST(
 
   const plan = (body as Record<string, unknown>)?.plan
   if (typeof plan !== 'string' || !VALID_PLANS.has(plan)) {
-    return err('Geçersiz plan değeri. STARTER, AGENCY_5 veya AGENCY_20 olmalıdır.', 400)
+    return err('Geçersiz plan değeri. FREE, STARTER, AGENCY_5 veya AGENCY_20 olmalıdır.', 400)
   }
 
   const user = await db.user.findUnique({ where: { id: params.userId } })

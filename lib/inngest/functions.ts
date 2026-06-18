@@ -75,6 +75,7 @@ export const scheduledCrawlJob = inngest.createFunction(
       return db.site.findMany({
         where: {
           isActive: true,
+          user: { plan: { not: 'FREE' } },
           OR: [
             // DAILY: son 24 saatte taranmamış
             {
@@ -114,7 +115,7 @@ export const weeklyReportJob = inngest.createFunction(
   async ({ step }) => {
     const sites = await step.run('list-sites', async () => {
       return db.site.findMany({
-        where: { isActive: true },
+        where: { isActive: true, user: { plan: { not: 'FREE' } } },
         include: { user: { select: { email: true, name: true, emailReports: true } } },
       })
     })

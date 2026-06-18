@@ -7,6 +7,7 @@ import { Plan } from '@prisma/client'
 import { z } from 'zod'
 
 const PLAN_SITE_LIMITS: Record<Plan, number> = {
+  [Plan.FREE]:      1,
   [Plan.STARTER]:   1,
   [Plan.AGENCY_5]:  5,
   [Plan.AGENCY_20]: 20,
