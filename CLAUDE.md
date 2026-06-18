@@ -5,7 +5,7 @@ Obsey — GEO (Generative Engine Optimization) SaaS platformu. ChatGPT, Claude, 
 
 **Branch:** `main`
 **Repo:** `ozgasl/GEO-Platform`
-**Versiyon:** v1.0.2
+**Versiyon:** v1.0.3
 
 ---
 
@@ -173,6 +173,42 @@ components/dashboard/
 - **Google Search Console:** henüz yapılmadı — DNS TXT kaydı gerekiyor
 - **`/admin` paneli:** mevcut sitenin arkasında gizli (ana domain + login + `ADMIN_EMAIL` kontrolü, sidebar'da link yok). `ADMIN_EMAIL` env değişkeni ayarlanmazsa `/admin` herkese "Yetkisiz erişim" döner — Vercel production env'de set edilmeli. Kullanıcı listesi/plan yönetiminin yanında tüm sitelerin listesi, GEO skoru ve rapor indirme linkleri de gösterilir (admin için `requireSiteOwner` bypass'ı `isAdminUser()` ile sağlanır).
 - **AI-bot 403 tespiti DOĞRULANDI (2026-06-03):** puntodijital.com, roipublic.com, pindrinks.com — üçü de "GPTBot engellendi (HTTP 403)" raporladı; gerçek pozitif, Obsey hatası değil. Sadece UA değişince `GPTBot`→403 / tarayıcı→200 (UA-bazlı WAF engeli, rate-limit değil). Çözüm site sahibinde: Cloudflare/WAF'ta AI UA'larını allow-list'e ekleme. **Açık nüans (ertelendi):** probe'lara (robots/sitemap/llms) gelen 403, `isThrottledOrUnknownStatus` yalnız 429/5xx'e baktığından "yok" sanılıyor — PARTIAL taramada panelde yanıltıcı olabilir.
+
+## Plan Sistemi (v1.0.3)
+
+### Plan enum (prisma/schema.prisma)
+```
+FREE      → yeni kullanıcı default; 1 site, 1 crawl, 1 rapor, 1 e-posta
+STARTER   → ücretli; 1 site, sınırsız crawl + haftalık rapor
+AGENCY_5  → ücretli (Growth); 5 site
+AGENCY_20 → ücretli (Scale); 20 site
+```
+
+### Kritik Plan Kuralları
+- **Crawl gating:** `isPaid = plan !== 'FREE'` — sadece FREE kullanıcılar `freeReportUsed` sınırına tabi
+- **scheduledCrawlJob + weeklyReportJob:** `user.plan: { not: 'FREE' }` filtresi — FREE kullanıcıların siteleri otomatik taranmaz, haftalık rapor almaz
+- **Admin API (`/api/admin/users/[userId]/plan`):** form POST alır (`application/x-www-form-urlencoded`), başarıda `/admin`'e redirect döner
+- **Admin form:** native HTML form, `method="POST"`, JSON değil form-encoded gönderir
+
+### PostgreSQL Enum Migration Kritik Notu
+`ALTER TYPE ... ADD VALUE` **Prisma 5.22'de transaction içinde kullanamazsın**:
+- `-- This migration does not run in a transaction.` pragma'sı Prisma 5.x'te **çalışmaz** (Prisma 6+ özelliği)
+- Çözüm: Migration'ı **iki ayrı dosyaya böl** — ilki sadece `ALTER TYPE` (kendi transaction'ında commit olur), ikincisi `UPDATE` + `ALTER DEFAULT`
+- Örnek: `20260618000000_add_free_plan` (sadece ALTER TYPE) + `20260618000100_migrate_free_plan_data` (UPDATE + ALTER DEFAULT)
+- Gelecekte enum değeri eklerken aynı pattern'i uygula
+
+### Neon Production Migration Prosedürü
+Railway shell'de (container yeniden başlatılmış olmalı):
+```bash
+npx prisma migrate deploy
+```
+Başarısız migration varsa önce:
+```bash
+npx prisma migrate resolve --rolled-back <migration_name>
+npx prisma migrate deploy
+```
+
+---
 
 ## Sonraki Adımlar (v1.1)
 - Pilot Mode (automated apply to customer sites) — Opus design pass required first
