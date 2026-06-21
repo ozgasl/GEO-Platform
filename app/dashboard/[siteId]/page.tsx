@@ -2,8 +2,9 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getSessionUser, requireSiteOwner } from '@/lib/api-utils'
 import { db } from '@/lib/db'
-import { calculateGeoScore } from '@/lib/reports/score'
+import { calculateGeoScore, estimateImprovement } from '@/lib/reports/score'
 import ScoreBadge from '@/components/dashboard/ScoreBadge'
+import ImproveScoreModal from '@/components/dashboard/ImproveScoreModal'
 import IssueTabs from '@/components/dashboard/IssueTabs'
 import SnippetPanel from '@/components/dashboard/SnippetPanel'
 import ModeToggle from '@/components/dashboard/ModeToggle'
@@ -145,6 +146,12 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
     ? assessCrawlConfidence(crawlHealth, (snapshot.pages as unknown[]).length)
     : null
 
+  // Tarama güveni OK ise Danışman fix çıktıları üretilir (yalnızca doğrulanmış bulgular).
+  const confidenceOk = confidence?.level === 'OK'
+  const scoreGain = snapshotData && confidenceOk
+    ? estimateImprovement(snapshotData, snapshot!.issues)
+    : 0
+
   const aiVisits = (snapshot?.aiCrawlerVisits ?? {}) as Record<string, number>
   const totalVisits = Object.values(aiVisits).reduce((s, v) => s + v, 0)
 
@@ -223,7 +230,24 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
           ) : confidence.level === 'PARTIAL' ? (
             <span className="inline-flex items-center gap-1.5 rounded-full font-semibold ring-1 bg-gray-100 text-gray-600 ring-gray-200 text-sm px-3 py-1.5" title="Site erişimi sınırladı; skor güvenilir değil.">Kısmi tarama</span>
           ) : geoScore ? (
-            <ScoreBadge score={geoScore.total} size="lg" />
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <ScoreBadge score={geoScore.total} size="lg" />
+              {scoreGain > 0 && issues.length > 0 && (
+                <ImproveScoreModal
+                  issues={issues.map(i => ({
+                    id: i.id,
+                    severity: i.severity,
+                    category: i.category,
+                    title: i.title,
+                    description: i.description,
+                    actionPayload: i.actionPayload as Record<string, unknown> | null,
+                  }))}
+                  siteId={site.id}
+                  siteUrl={site.url}
+                  gain={scoreGain}
+                />
+              )}
+            </div>
           ) : (
             <span className="text-sm text-gray-400">Veri yok</span>
           )}
@@ -262,7 +286,7 @@ export default async function SiteDetailPage({ params }: { params: { siteId: str
               </Link>
             )}
           </div>
-          <IssueTabs allIssues={allIssues} siteId={site.id} siteMode={site.mode} />
+          <IssueTabs allIssues={allIssues} siteId={site.id} siteMode={site.mode} confidenceOk={confidenceOk} />
         </div>
 
         {/* Sidebar: tech status + snippet */}

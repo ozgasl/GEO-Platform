@@ -1,6 +1,6 @@
 import { ok, err, unauthorized, notFound, getSessionUser, requireSiteOwner } from '@/lib/api-utils'
 import { db } from '@/lib/db'
-import { previewAction } from '@/lib/actions/apply'
+import { previewFix } from '@/lib/actions/apply'
 
 export async function POST(
   _request: Request,
@@ -21,7 +21,7 @@ export async function POST(
   if (!issue) return notFound()
 
   try {
-    const result = await previewAction(params.issueId)
+    const result = await previewFix(params.issueId)
     return ok(result)
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Önizleme oluşturulamadı.'

@@ -1,7 +1,7 @@
 import type { SnapshotData } from '@/lib/types'
 import type { Issue } from '@prisma/client'
 
-const SEVERITY_PENALTY: Record<string, number> = {
+export const SEVERITY_PENALTY: Record<string, number> = {
   CRITICAL: 25,
   HIGH: 15,
   MEDIUM: 8,
@@ -75,6 +75,20 @@ export function calculateGeoScore(snapshot: SnapshotData, issues: Issue[]): GeoS
     grade,
     summary,
   }
+}
+
+/**
+ * Tüm PENDING bulgular çözülürse skorun ne kadar artacağını tahmin eder.
+ * "Skoru yükselt (+N)" butonu için. Mevcut calculateGeoScore mantığını reuse eder.
+ */
+export function estimateImprovement(snapshot: SnapshotData, issues: Issue[]): number {
+  const current = calculateGeoScore(snapshot, issues).total
+  // PENDING'leri çözülmüş (DISMISSED) varsayarak potansiyel skoru hesapla.
+  const resolved = issues.map(i =>
+    i.status === 'PENDING' ? { ...i, status: 'DISMISSED' } : i
+  ) as Issue[]
+  const potential = calculateGeoScore(snapshot, resolved).total
+  return Math.max(0, potential - current)
 }
 
 function buildSummary(
