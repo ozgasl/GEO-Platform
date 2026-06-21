@@ -1,5 +1,7 @@
 import { db } from '@/lib/db'
-import { generateLlmsTxt, generateSchemaMarkup } from '@/lib/analyzer/llm'
+import { generateLlmsTxt, generateSchemaMarkup, generateFindingCopy } from '@/lib/analyzer/llm'
+import { getCheckMetadata } from '@/lib/check-metadata'
+import { buildAgentPrompt } from '@/lib/fixes/agent-prompt'
 import type { PageSnapshot, SnapshotData } from '@/lib/types'
 
 const FETCH_TIMEOUT = 10_000
@@ -20,6 +22,18 @@ export interface PreviewResult {
   after: string
   instructions: string
   isReversible: boolean
+}
+
+export interface FixOutputResult {
+  // agent_prompt = deterministik ajan prompt'u (LLM yok)
+  // ready_copy   = LLM ile üretilmiş yayınlanabilir metin (review-only)
+  fixDelivery: 'agent_prompt' | 'ready_copy'
+  // Kopyalanacak/gösterilecek ana çıktı (prompt veya hazır metin)
+  output: string
+  // Kısa açıklama / kullanım talimatı
+  instructions: string
+  // ready_copy için true → "yayınlamadan önce gözden geçir" etiketi
+  reviewRequired: boolean
 }
 
 // ----- Yardımcılar -----
@@ -328,7 +342,53 @@ export async function applyAction(
   }
 }
 
-/** ADVISOR modu için: içerik üretir ama DB'ye yazmaz. */
+/**
+ * ADVISOR modu Danışman çıktısı — DB'ye yazmaz.
+ * fixDelivery'ye göre:
+ *  - agent_prompt → deterministik ajan prompt'u (LLM çağrısı YOK)
+ *  - ready_copy   → tek bulguya dayalı LLM hazır metni (review-only)
+ */
+export async function previewFix(issueId: string): Promise<FixOutputResult> {
+  const issue = await db.issue.findUniqueOrThrow({
+    where: { id: issueId },
+    include: { snapshot: { include: { site: true } } },
+  })
+
+  const metadata = getCheckMetadata(issue.category)
+  const payload = (issue.actionPayload ?? null) as Record<string, unknown> | null
+
+  if (metadata.fixDelivery === 'ready_copy') {
+    const snapshotData = dbSnapshotToData(issue.snapshot)
+    const output = await generateFindingCopy(
+      { title: issue.title, description: issue.description, category: issue.category, actionPayload: payload },
+      snapshotData
+    )
+    if (!output) throw new Error('İçerik metni üretilemedi. Lütfen tekrar deneyin.')
+    return {
+      fixDelivery: 'ready_copy',
+      output,
+      instructions: 'Aşağıdaki hazır metni sayfanıza ekleyebilirsiniz.',
+      reviewRequired: true,
+    }
+  }
+
+  // agent_prompt — deterministik, LLM yok
+  const output = buildAgentPrompt(
+    { category: issue.category, severity: issue.severity, title: issue.title, description: issue.description, actionPayload: payload },
+    issue.snapshot.site.url
+  )
+  return {
+    fixDelivery: 'agent_prompt',
+    output,
+    instructions: "Bu prompt'u coding agent'ınıza (ör. Claude Code) yapıştırın.",
+    reviewRequired: false,
+  }
+}
+
+/**
+ * Geriye dönük uyumluluk: eski içerik üretimi (DB yazmaz).
+ * @deprecated previewFix kullanın.
+ */
 export async function previewAction(issueId: string): Promise<PreviewResult> {
   return generateContent(issueId)
 }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { getCheckMetadata, LAYER_LABEL, LAYER_STYLE, engineLabels } from '@/lib/check-metadata'
 
 interface Issue {
   id: string
@@ -32,29 +33,77 @@ const ACTION_TYPE_LABEL: Record<string, string> = {
   MANUAL_REQUIRED: 'Manuel Gerekli',
 }
 
+/** Katman rozeti + motor chip'leri + dürüst not (Görev 4). */
+function CheckMeta({ category }: { category: string }) {
+  const meta = getCheckMetadata(category)
+  return (
+    <div className="mt-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ring-1 ${LAYER_STYLE[meta.layer]}`}>
+          {LAYER_LABEL[meta.layer]}
+        </span>
+        {engineLabels(meta.engines).map(label => (
+          <span key={label} className="text-[11px] text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded-full">
+            {label}
+          </span>
+        ))}
+      </div>
+      {meta.note && (
+        <p className="text-[11px] text-gray-400 italic mt-1">{meta.note}</p>
+      )}
+    </div>
+  )
+}
+
+interface PreviewState {
+  output: string
+  fixDelivery: 'agent_prompt' | 'ready_copy'
+  reviewRequired: boolean
+  instructions?: string
+}
+
 interface IssueItemProps {
   issue: Issue
   siteId: string
   siteMode: 'ADVISOR' | 'PILOT'
+  // Tarama güveni OK değilse (PARTIAL/FAILED) yeni fix çıktıları üretilmez.
+  confidenceOk: boolean
 }
 
-function IssueItem({ issue, siteId, siteMode }: IssueItemProps) {
+function IssueItem({ issue, siteId, siteMode, confidenceOk }: IssueItemProps) {
   const router = useRouter()
   const [loading, setLoading] = useState<'apply' | 'preview' | 'complete' | 'dismiss' | null>(null)
-  const [preview, setPreview] = useState<{ after?: string; instructions?: string } | null>(null)
+  const [preview, setPreview] = useState<PreviewState | null>(null)
   const [copied, setCopied] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  async function showPreview() {
+  const fixDelivery = getCheckMetadata(issue.category).fixDelivery
+  const generateLabel = fixDelivery === 'ready_copy' ? '📝 Metni kopyala' : '⌘ Prompt\'u kopyala'
+
+  async function generateFix() {
     setLoading('preview')
     setActionError(null)
     const res = await fetch(`/api/sites/${siteId}/issues/${issue.id}/preview`, { method: 'POST' })
     const data = await res.json().catch(() => ({}))
     setLoading(null)
     if (res.ok) {
-      setPreview({ after: data.after, instructions: data.instructions })
+      const state: PreviewState = {
+        output: data.output,
+        fixDelivery: data.fixDelivery,
+        reviewRequired: !!data.reviewRequired,
+        instructions: data.instructions,
+      }
+      setPreview(state)
+      // Tek tıkla kopyala — buton etiketiyle tutarlı.
+      if (state.output) {
+        try {
+          await navigator.clipboard.writeText(state.output)
+          setCopied(true)
+          setTimeout(() => setCopied(false), 2000)
+        } catch { /* pano erişimi yoksa sessizce geç; panel yine de gösterilir */ }
+      }
     } else {
-      setActionError(data.error ?? 'Önizleme oluşturulamadı. Lütfen tekrar deneyin.')
+      setActionError(data.error ?? 'Çıktı oluşturulamadı. Lütfen tekrar deneyin.')
     }
   }
 
@@ -91,9 +140,9 @@ function IssueItem({ issue, siteId, siteMode }: IssueItemProps) {
     router.refresh()
   }
 
-  async function copyPreview() {
-    if (!preview?.after) return
-    await navigator.clipboard.writeText(preview.after)
+  async function copyOutput() {
+    if (!preview?.output) return
+    await navigator.clipboard.writeText(preview.output)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -116,27 +165,35 @@ function IssueItem({ issue, siteId, siteMode }: IssueItemProps) {
               </span>
             </div>
 
+            {/* Katman rozeti + motor chip'leri + dürüst not */}
+            <CheckMeta category={issue.category} />
+
             {/* Impact */}
             <p className="text-xs text-gray-600 mt-2 bg-amber-50 rounded px-2 py-1.5 border border-amber-100">
               💡 {issue.impact}
             </p>
 
-            {/* AI-generated preview — shown after "Öneriyi Göster" is clicked */}
+            {/* Üretilen çıktı — "Prompt'u kopyala" / "Metni kopyala" sonrası */}
             {preview && (
               <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                {preview.reviewRequired && (
+                  <p className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-2">
+                    ⚠ Yayınlamadan önce gözden geçir
+                  </p>
+                )}
                 {preview.instructions && (
                   <p className="text-xs text-blue-700 mb-2">{preview.instructions}</p>
                 )}
-                {preview.after && (
+                {preview.output && (
                   <>
                     <pre className="text-xs bg-white rounded p-2 overflow-auto max-h-56 border border-blue-200 whitespace-pre-wrap font-mono leading-relaxed">
-                      {preview.after}
+                      {preview.output}
                     </pre>
                     <button
-                      onClick={copyPreview}
+                      onClick={copyOutput}
                       className="mt-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
                     >
-                      {copied ? '✓ Kopyalandı!' : 'Kopyala'}
+                      {copied ? '✓ Kopyalandı!' : (preview.fixDelivery === 'ready_copy' ? 'Metni kopyala' : 'Prompt\'u kopyala')}
                     </button>
                   </>
                 )}
@@ -176,22 +233,25 @@ function IssueItem({ issue, siteId, siteMode }: IssueItemProps) {
             </>
           ) : (
             <>
-              {!preview ? (
-                <button
-                  onClick={showPreview}
-                  disabled={!!loading}
-                  className="flex-1 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
-                >
-                  {loading === 'preview' ? '…' : '↗ Öneriyi Göster'}
-                </button>
-              ) : (
-                <button
-                  onClick={markComplete}
-                  disabled={!!loading}
-                  className="flex-1 py-2.5 text-sm font-medium text-green-700 hover:bg-green-50 transition-colors disabled:opacity-50"
-                >
-                  {loading === 'complete' ? '…' : '✓ Tamamlandı'}
-                </button>
+              {/* Çıktı üretimi yalnızca tarama güveni OK iken sunulur */}
+              {confidenceOk && (
+                !preview ? (
+                  <button
+                    onClick={generateFix}
+                    disabled={!!loading}
+                    className="flex-1 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                  >
+                    {loading === 'preview' ? '…' : generateLabel}
+                  </button>
+                ) : (
+                  <button
+                    onClick={markComplete}
+                    disabled={!!loading}
+                    className="flex-1 py-2.5 text-sm font-medium text-green-700 hover:bg-green-50 transition-colors disabled:opacity-50"
+                  >
+                    {loading === 'complete' ? '…' : '✓ Tamamlandı'}
+                  </button>
+                )
               )}
               <div className="w-px bg-gray-100" />
               <button
@@ -213,9 +273,10 @@ interface IssueListProps {
   issues: Issue[]
   siteId: string
   siteMode: 'ADVISOR' | 'PILOT'
+  confidenceOk?: boolean
 }
 
-export default function IssueList({ issues, siteId, siteMode }: IssueListProps) {
+export default function IssueList({ issues, siteId, siteMode, confidenceOk = true }: IssueListProps) {
   if (issues.length === 0) {
     return (
       <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-200">
@@ -227,7 +288,7 @@ export default function IssueList({ issues, siteId, siteMode }: IssueListProps) 
   return (
     <div className="space-y-3">
       {issues.map(issue => (
-        <IssueItem key={issue.id} issue={issue} siteId={siteId} siteMode={siteMode} />
+        <IssueItem key={issue.id} issue={issue} siteId={siteId} siteMode={siteMode} confidenceOk={confidenceOk} />
       ))}
     </div>
   )

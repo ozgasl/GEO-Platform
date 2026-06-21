@@ -201,6 +201,83 @@ ${JSON.stringify(pageData, null, 2)}`,
   }
 }
 
+// ----- Hazır içerik metni üretimi (ready_copy) -----
+
+const FINDING_COPY_SYSTEM_PROMPT = `Sen bir Türkçe içerik stratejistisin. Görevin: tek bir doğrulanmış bulguya
+dayanarak, web sitesinde DOĞRUDAN yayınlanabilir hazır metin üretmek.
+Kurallar:
+1. Çıktı, kullanıcının kopyalayıp sayfasına ekleyebileceği gerçek metin olmalı — "şunu yazın" gibi talimat DEĞİL.
+2. Yalnızca verilen bulguya ve sayfa içeriğine dayan; uydurma bilgi/istatistik EKLEME.
+3. AI motorlarının alıntılayabileceği net, doğrudan, soru-yanıt odaklı bir dil kullan.
+4. Markdown formatında yaz. Açıklama/önsöz ekleme, sadece içeriği ver.`
+
+export interface FindingCopyInput {
+  title: string
+  description: string
+  category: string
+  actionPayload?: Record<string, unknown> | null
+}
+
+/**
+ * Tek bir doğrulanmış içerik bulgusu için yayınlanabilir hazır metin üretir.
+ * review-only: kullanıcı yayınlamadan önce gözden geçirmeli.
+ */
+export async function generateFindingCopy(
+  issue: FindingCopyInput,
+  snapshot: SnapshotData
+): Promise<string> {
+  const payload = (issue.actionPayload ?? {}) as Record<string, unknown>
+  const targetUrl = payload.url as string | undefined
+  const normalize = (u: string) => u.replace(/\/$/, '')
+  const page = targetUrl
+    ? snapshot.pages.find(p => normalize(p.url) === normalize(targetUrl))
+    : undefined
+
+  const pageContext = page
+    ? {
+        url: page.url,
+        title: page.title,
+        h1: page.h1,
+        h2Array: page.h2Array.slice(0, 8),
+        wordCount: page.wordCount,
+        metaDescription: page.metaDescription,
+      }
+    : null
+
+  const missingQuestions = (payload.missingQuestions as string[] | undefined) ?? []
+  const suggestedFaqItems = (payload.suggestedFaqItems as Array<{ question: string; answer?: string }> | undefined) ?? []
+  const contentGap = payload.contentGap as string | undefined
+  const recommendation = payload.recommendation as string | undefined
+
+  try {
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: 1536,
+      system: FINDING_COPY_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: 'user',
+          content: `Bulgu: ${issue.title}
+${issue.description}
+
+${pageContext ? `Hedef sayfa:\n${JSON.stringify(pageContext, null, 2)}` : 'Hedef sayfa belirtilmedi — site geneli içerik üret.'}
+${contentGap ? `\nEksik içerik: ${contentGap}` : ''}
+${recommendation ? `\nÖneri: ${recommendation}` : ''}
+${missingQuestions.length > 0 ? `\nYanıtlanması gereken sorular:\n${missingQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}` : ''}
+${suggestedFaqItems.length > 0 ? `\nÖnerilen SSS başlıkları:\n${suggestedFaqItems.map(f => `- ${f.question}`).join('\n')}` : ''}
+
+Bu bulguyu gidermek için yayınlanabilir hazır metni üret.`,
+        },
+      ],
+    })
+
+    return response.content[0].type === 'text' ? response.content[0].text.trim() : ''
+  } catch (err) {
+    console.error('[LLM] generateFindingCopy başarısız:', err)
+    return ''
+  }
+}
+
 // ----- Toplu analiz yardımcısı -----
 
 /**

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import IssueList from './IssueList'
+import { getCheckMetadata, LAYER_LABEL, LAYER_STYLE } from '@/lib/check-metadata'
 
 interface Action {
   id: string
@@ -77,6 +78,9 @@ function CompletedIssueItem({ issue, siteId }: { issue: Issue; siteId: string })
               </span>
             </div>
             <p className="text-xs text-gray-500 mt-0.5">{issue.description}</p>
+            <span className={`inline-block mt-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full ring-1 ${LAYER_STYLE[getCheckMetadata(issue.category).layer]}`}>
+              {LAYER_LABEL[getCheckMetadata(issue.category).layer]}
+            </span>
             {appliedDate && (
               <p className="text-xs text-gray-400 mt-1">{appliedDate}</p>
             )}
@@ -121,9 +125,11 @@ interface IssueTabsProps {
   allIssues: Issue[]
   siteId: string
   siteMode: 'ADVISOR' | 'PILOT'
+  // Tarama güveni OK değilse fix çıktısı üretilmez.
+  confidenceOk?: boolean
 }
 
-export default function IssueTabs({ allIssues, siteId, siteMode }: IssueTabsProps) {
+export default function IssueTabs({ allIssues, siteId, siteMode, confidenceOk = true }: IssueTabsProps) {
   const [tab, setTab] = useState<'pending' | 'completed'>('pending')
 
   const pending = allIssues.filter(i => i.status === 'PENDING')
@@ -167,7 +173,7 @@ export default function IssueTabs({ allIssues, siteId, siteMode }: IssueTabsProp
 
       {/* Tab content */}
       {tab === 'pending' && (
-        <IssueList issues={pending} siteId={siteId} siteMode={siteMode} />
+        <IssueList issues={pending} siteId={siteId} siteMode={siteMode} confidenceOk={confidenceOk} />
       )}
 
       {tab === 'completed' && (
