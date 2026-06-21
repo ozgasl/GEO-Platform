@@ -95,6 +95,16 @@ export const FUTURE_CHECKS: FutureCheck[] = [
     fixDelivery: 'agent_prompt',
     note: GOOGLE_AIO_NOTE,
   },
+  // ⚠️ TUZAK — content_signals'i SHIP ETMEDEN ÖNCE OKU:
+  // Aktif metadata `category` ile anahtarlı (getCheckMetadata) ve content_signals
+  // bir robots.txt directive'i olduğu için doğal olarak ROBOTS kategorisine düşer.
+  // ROBOTS şu an `bedrock` + `engines: 'all'` — yani content_signals bunu miras
+  // ALIRSA yanlışlıkla "Google AI Overviews için de geçerli" iddiası üretir.
+  // OYSA content_signals `ai_specific` olmalı ve google_ai_overviews DIŞLANMALI
+  // (yukarıdaki bu girdideki gibi). Bu yüzden taramayı eklerken İKİSİNDEN biri:
+  //   (a) content_signals'e KENDİ metadata anahtarını ver (ROBOTS'tan miras alma), VEYA
+  //   (b) metadata granülaritesini category-level'dan check-level'a çıkar.
+  // ROBOTS/bedrock metadata'sını OLDUĞU GİBİ miras ALMA.
   {
     id: 'mcp_server_card',
     label: 'MCP server card / WebMCP / agent skills index / API catalog',
