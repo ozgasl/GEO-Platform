@@ -42,6 +42,11 @@ export async function POST(
   const site = await requireSiteOwner(params.siteId, user.id)
   if (!site) return notFound()
 
+  // Pasif siteler için rapor oluşturulamaz
+  if (!site.isActive) {
+    return err('Pasif siteler için rapor oluşturulamaz. Önce siteyi aktif yapın.', 403)
+  }
+
   try {
     const report = await generateReport(params.siteId)
     return ok(report, 201)

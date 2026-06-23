@@ -25,6 +25,11 @@ export async function POST(
   const site = await requireSiteOwner(siteId, user.id)
   if (!site) return notFound()
 
+  // Pasif siteler taranamaz
+  if (!site.isActive) {
+    return err('Pasif siteler taranamaz. Önce siteyi aktif yapın.', 403)
+  }
+
   // Trial gate: FREE users who have used their free report cannot crawl again
   const dbUser = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { plan: true, freeReportUsed: true } })
   const isPaid = dbUser.plan !== 'FREE'

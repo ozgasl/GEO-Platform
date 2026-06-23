@@ -7,6 +7,7 @@ interface Site {
   id: string
   url: string
   name: string
+  savedAsPassive?: boolean
 }
 
 interface AddSiteFormProps {
@@ -18,11 +19,13 @@ export default function AddSiteForm({ onSuccess }: AddSiteFormProps = {}) {
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setNotice('')
 
     const res = await fetch('/api/sites', {
       method: 'POST',
@@ -39,6 +42,9 @@ export default function AddSiteForm({ onSuccess }: AddSiteFormProps = {}) {
     }
 
     setUrl('')
+    if ((data as Site).savedAsPassive) {
+      setNotice('Aktif site limitiniz dolu. Site PASİF olarak kaydedildi; aktif etmek için önce mevcut bir siteyi pasif yapın.')
+    }
     if (onSuccess) {
       onSuccess(data as Site)
     } else {
@@ -64,6 +70,7 @@ export default function AddSiteForm({ onSuccess }: AddSiteFormProps = {}) {
         {loading ? '…' : 'Site Ekle'}
       </button>
       {error && <p className="text-sm text-red-600 self-center">{error}</p>}
+      {notice && <p className="text-sm text-amber-600 self-center">{notice}</p>}
     </form>
   )
 }

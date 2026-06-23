@@ -187,6 +187,14 @@ AGENCY_20 → ücretli (Scale); 20 site
 ### Kritik Plan Kuralları
 - **Crawl gating:** `isPaid = plan !== 'FREE'` — sadece FREE kullanıcılar `freeReportUsed` sınırına tabi
 - **scheduledCrawlJob + weeklyReportJob:** `user.plan: { not: 'FREE' }` filtresi — FREE kullanıcıların siteleri otomatik taranmaz, haftalık rapor almaz
+
+### Aktif/Pasif Site (v1.0.4)
+- **Plan limiti artık AKTİF site sayısı:** `PLAN_ACTIVE_SITE_LIMITS` (`lib/plans.ts`) tek kaynak — FREE=1, STARTER=1, AGENCY_5=5, AGENCY_20=20. Ücretli kullanıcılarda toplam kayıtlı site **sınırsız**, yalnızca aynı anda aktif olan site sayısı sınırlı. FREE dokunulmadı: toplam 1 site, her zaman aktif, toggle yok.
+- **`Site.isActive`** zaten şemada mevcuttu — migration gerekmez.
+- **Yeni site + limit dolu (ücretli):** site `isActive: false` kaydedilir, crawl tetiklenmez; API yanıtı `savedAsPassive: true` döner (UI uyarısı için).
+- **Aktif/pasif toggle:** `PATCH /api/sites/[siteId]/active` `{ active: boolean }` — FREE'ye kapalı (403). Pasifleştirme her zaman serbest; aktifleştirme aktif sayısı `< limit` ise serbest, değilse 403. UI: `components/dashboard/ActiveToggle.tsx` (dashboard site listesi kartlarında).
+- **Pasif siteler tarama/rapor ALAMAZ:** manuel crawl (`crawl/route.ts`) ve manuel rapor (`reports/route.ts` POST) artık `!site.isActive` ise 403 döner. Otomatik joblar (`scheduledCrawlJob`/`weeklyReportJob`) zaten `isActive: true` filtreliydi.
+
 - **Admin API (`/api/admin/users/[userId]/plan`):** form POST alır (`application/x-www-form-urlencoded`), başarıda `/admin`'e redirect döner
 - **Admin form:** native HTML form, `method="POST"`, JSON değil form-encoded gönderir
 
