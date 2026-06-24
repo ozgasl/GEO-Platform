@@ -2,7 +2,7 @@
 
 GEO (Generative Engine Optimization) SaaS platform. Analyzes and automatically improves site visibility on AI search engines like ChatGPT, Claude, and Perplexity.
 
-**Version:** v1.0.2 · **Live:** [obsey.io](https://obsey.io)
+**Version:** v1.0.4 · **Live:** [obsey.io](https://obsey.io)
 
 ---
 

@@ -5,7 +5,7 @@ Obsey — GEO (Generative Engine Optimization) SaaS platformu. ChatGPT, Claude, 
 
 **Branch:** `main`
 **Repo:** `ozgasl/GEO-Platform`
-**Versiyon:** v1.0.3
+**Versiyon:** v1.0.4
 
 ---
 
