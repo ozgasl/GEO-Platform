@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
-import { ok, err, unauthorized, forbidden } from '@/lib/api-utils'
+import { ok, err, unauthorized, forbidden, isAdminEmail } from '@/lib/api-utils'
 import { Plan } from '@prisma/client'
 
 const VALID_PLANS = new Set<string>(['FREE', 'STARTER', 'AGENCY_5', 'AGENCY_20'])
@@ -13,8 +13,7 @@ export async function POST(
   const session = await auth()
   if (!session?.user?.email) return unauthorized()
 
-  const adminEmail = process.env.ADMIN_EMAIL
-  if (!adminEmail || session.user.email !== adminEmail) return forbidden()
+  if (!isAdminEmail(session.user.email)) return forbidden()
 
   const contentType = req.headers.get('content-type') ?? ''
   let plan: unknown

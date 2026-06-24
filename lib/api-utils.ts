@@ -36,9 +36,27 @@ export async function requireSiteOwner(siteId: string, userId: string) {
 }
 
 /**
+ * ADMIN_EMAIL listesindeki admin e-postalarını döner.
+ * Virgülle ayrılmış birden fazla e-posta destekler (case-insensitive).
+ */
+export function getAdminEmails(): string[] {
+  return (process.env.ADMIN_EMAIL ?? '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+/**
+ * Verilen e-postanın admin olup olmadığını kontrol eder.
+ */
+export function isAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false
+  return getAdminEmails().includes(email.toLowerCase())
+}
+
+/**
  * Kullanıcının ADMIN_EMAIL ile eşleşip eşleşmediğini kontrol eder.
  */
 export function isAdminUser(user: User): boolean {
-  const adminEmail = process.env.ADMIN_EMAIL
-  return !!adminEmail && user.email === adminEmail
+  return isAdminEmail(user.email)
 }
