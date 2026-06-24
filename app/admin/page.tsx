@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getSessionUser } from '@/lib/api-utils'
+import { getSessionUser, isAdminEmail } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import ScoreBadge from '@/components/dashboard/ScoreBadge'
 
@@ -47,8 +47,7 @@ export default async function AdminPage() {
   const user = await getSessionUser()
   if (!user) return <div className="p-8 text-red-600">Giriş yapmanız gerekiyor.</div>
 
-  const adminEmail = process.env.ADMIN_EMAIL
-  if (!adminEmail || user.email !== adminEmail) {
+  if (!isAdminEmail(user.email)) {
     return <div className="p-8 text-red-600">Yetkisiz erişim.</div>
   }
 
