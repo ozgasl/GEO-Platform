@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { getSessionUser } from '@/lib/api-utils'
 import { db } from '@/lib/db'
+import { PLAN_ACTIVE_SITE_LIMITS } from '@/lib/plans'
 import AddSiteForm from '@/components/dashboard/AddSiteForm'
+import ActiveToggle from '@/components/dashboard/ActiveToggle'
 import { OnboardingFlow } from '@/components/onboarding'
 
 async function getSites(userId: string) {
@@ -45,6 +47,11 @@ export default async function DashboardPage() {
     return <OnboardingFlow />
   }
 
+  const isPaid = user.plan !== 'FREE'
+  const activeLimit = PLAN_ACTIVE_SITE_LIMITS[user.plan]
+  const activeCount = sites.filter(s => s.isActive).length
+  const canActivate = activeCount < activeLimit
+
   return (
     <div className="p-8 max-w-5xl">
       {/* Header */}
@@ -53,6 +60,11 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-bold text-gray-900">Sitelerim</h1>
           <p className="text-sm text-gray-500 mt-0.5">AI motorlarındaki görünürlüğünüzü yönetin</p>
         </div>
+        {isPaid && (
+          <span className="text-sm text-gray-500">
+            <span className="font-semibold text-gray-700">{activeCount}/{activeLimit}</span> aktif site
+          </span>
+        )}
       </div>
 
       {/* Add site */}
@@ -73,7 +85,9 @@ export default async function DashboardPage() {
               <Link
                 key={site.id}
                 href={`/dashboard/${site.id}`}
-                className="block bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300 hover:shadow-sm transition-all group"
+                className={`block bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300 hover:shadow-sm transition-all group ${
+                  site.isActive ? '' : 'opacity-60'
+                }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="min-w-0">
@@ -88,11 +102,24 @@ export default async function DashboardPage() {
                       }`}>
                         {site.mode}
                       </span>
+                      {!site.isActive && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-200 text-gray-600">
+                          Pasif
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-gray-400 mt-0.5 truncate">{site.url}</p>
                   </div>
 
                   <div className="flex items-center gap-4 ml-4">
+                    {isPaid && (
+                      <ActiveToggle
+                        siteId={site.id}
+                        isActive={site.isActive}
+                        canActivate={canActivate}
+                      />
+                    )}
+
                     {/* Issue badges */}
                     {pendingIssues.length > 0 ? (
                       <div className="flex items-center gap-2">

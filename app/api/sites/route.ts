@@ -3,15 +3,8 @@ import { ok, err, unauthorized, getSessionUser } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import { inngest } from '@/lib/inngest/client'
 import { checkRateLimit } from '@/lib/rate-limit'
-import { Plan } from '@prisma/client'
+import { PLAN_ACTIVE_SITE_LIMITS } from '@/lib/plans'
 import { z } from 'zod'
-
-const PLAN_SITE_LIMITS: Record<Plan, number> = {
-  [Plan.FREE]:      1,
-  [Plan.STARTER]:   1,
-  [Plan.AGENCY_5]:  5,
-  [Plan.AGENCY_20]: 20,
-}
 
 const CreateSiteSchema = z.object({
   url: z.string().url('Geçerli bir URL giriniz.'),
@@ -65,14 +58,19 @@ export async function POST(request: Request) {
   const existing = await db.site.findFirst({ where: { userId: user.id, url } })
   if (existing) return err('Bu URL zaten eklenmiş.', 409)
 
-  // Plan limiti kontrolü
+  // Plan limiti artık AKTİF site sayısına uygulanır.
+  // FREE: toplam 1 site (her zaman aktif). Ücretli: sınırsız kayıt, aktif sayısı sınırlı.
   const userWithPlan = await db.user.findUnique({
     where: { id: user.id },
-    select: { plan: true, _count: { select: { sites: true } } },
+    select: { plan: true },
   })
-  if (userWithPlan) {
-    const limit = PLAN_SITE_LIMITS[userWithPlan.plan]
-    if (userWithPlan._count.sites >= limit) {
+  if (!userWithPlan) return unauthorized()
+
+  const limit = PLAN_ACTIVE_SITE_LIMITS[userWithPlan.plan]
+
+  if (userWithPlan.plan === 'FREE') {
+    const totalSites = await db.site.count({ where: { userId: user.id } })
+    if (totalSites >= limit) {
       return new Response(
         JSON.stringify({
           error: 'plan_limit',
@@ -84,23 +82,30 @@ export async function POST(request: Request) {
     }
   }
 
+  // Ücretli kullanıcıda aktif limiti doluysa site PASİF kaydedilir (crawl tetiklenmez).
+  const activeCount = await db.site.count({ where: { userId: user.id, isActive: true } })
+  const savedAsPassive = userWithPlan.plan !== 'FREE' && activeCount >= limit
+
   const site = await db.site.create({
     data: {
       userId: user.id,
       url,
       name: name ?? new URL(url).hostname,
+      isActive: !savedAsPassive,
     },
   })
 
-  // İlk taramayı otomatik başlat
-  try {
-    await inngest.send({
-      name: 'geo/site.crawl.requested',
-      data: { siteId: site.id, triggeredBy: 'MANUAL' },
-    })
-  } catch {
-    // Inngest yoksa (local dev) sessizce devam et — site oluşturma başarılı
+  // İlk taramayı yalnızca aktif kaydedilen siteler için başlat
+  if (!savedAsPassive) {
+    try {
+      await inngest.send({
+        name: 'geo/site.crawl.requested',
+        data: { siteId: site.id, triggeredBy: 'MANUAL' },
+      })
+    } catch {
+      // Inngest yoksa (local dev) sessizce devam et — site oluşturma başarılı
+    }
   }
 
-  return ok(site, 201)
+  return ok({ ...site, savedAsPassive }, 201)
 }
